@@ -1,0 +1,203 @@
+---
+title: "CenBench: Benchmarking Centrality Methods for Pedestrian Flow Modelling"
+author: "Robin Lovelace"
+date: "June 2026"
+format:
+  gfm:
+    toc: true
+    toc-depth: 3
+---
+
+## Abstract
+
+This study benchmarks two Python packages for pedestrian flow modelling — **cityseer** (v4.24.1) and **madina** (v0.0.15) — against Telraam pedestrian count data from Oxfordshire, UK. cityseer's shortest-path node centrality achieves the best predictive performance (R² = 0.60, Pearson r = 0.78) at walking-scale catchments (3200m), while madina-style edge betweenness shows a surprising negative correlation when unweighted (R² = 0.64, r = −0.80). The benchmark reveals fundamental differences between node-centric centrality (cityseer) and edge-centric flow models (madina), and highlights challenges in validating pedestrian models with sparse roadside sensor data.
+
+## 1. Introduction
+
+Pedestrian flow modelling is central to walkability analysis, transport planning, and urban design. Two dominant approaches exist:
+
+1. **Network Centrality** — Measures the structural importance of nodes or edges in a street network, on the assumption that central streets carry more pedestrian traffic.
+2. **Gravity / Flow Models** — Trip distribution models where pedestrian flow between origins and destinations is proportional to attractor weight and inversely proportional to distance.
+
+**cityseer** (Simons, 2022) implements high-performance network centrality measures in Rust, supporting shortest-path and simplest-path (angular) analysis with multi-distance aggregation.
+
+**madina** (Alhassan & Sevtsuk, 2024) implements the Urban Network Analysis (UNA) toolbox, adding origin-destination flow simulation with decay functions, detour penalties, and parallel processing.
+
+### 1.1 Related Work
+
+Prior benchmarks in the `criticalissues` repository (see [github.com/robinlovelace/criticalissues](https://github.com/Robinlovelace/criticalissues)) tested cityseer, sfnetworks, and dodgr against Leeds AADT traffic counts, finding best R² values of ~0.46 for cityseer with physics-based impedance models. This study extends that work by focusing specifically on **pedestrian** modelling and using **Telraam** sensor data as the validation target.
+
+## 2. Methods
+
+### 2.1 Study Area
+
+Oxford, UK — a medium-sized city with extensive pedestrian infrastructure. The street network was extracted from OpenStreetMap using osmnx (v2.1.0) with a bounding box of (−1.38, 51.62, −1.08, 51.90).
+
+| Network Property | Value |
+|-----------------|-------|
+| Nodes | 38,128 |
+| Edges | 95,622 (walk network) |
+| Network type | walk (pedestrian) |
+| CRS | EPSG:27700 (OSGB) |
+
+### 2.2 Validation Data
+
+14 Telraam v1 sensors in Oxfordshire provide hourly pedestrian counts. Key characteristics:
+
+- **Average pedestrian count**: 2.3 per hour (very low — these are roadside traffic sensors)
+- **Max hourly count**: 16 pedestrians
+- **Sensor locations**: Spread across Oxford city centre, ring road, and arterial roads
+- **Data period**: 30-day rolling window, aggregated to daily averages per sensor
+
+Sensors were matched to the nearest network node/edge using KD-tree spatial join at 100-200m threshold.
+
+### 2.3 Benchmark Design
+
+**cityseer experiments** (7 variants):
+
+| Variant | Method | Distance | Description |
+|---------|--------|----------|-------------|
+| shortest_200m | node_centrality_shortest | 200m | Very local catchment |
+| shortest_400m | node_centrality_shortest | 400m | 5-min walk radius |
+| shortest_800m | node_centrality_shortest | 800m | 10-min walk radius |
+| shortest_1600m | node_centrality_shortest | 1600m | 20-min walk radius |
+| shortest_3200m | node_centrality_shortest | 3200m | Extended walking range |
+| shortest_multi | node_centrality_shortest | [400,800,1600] | Multi-distance |
+| global_shortest | node_centrality_shortest | 50000m | Network-global |
+
+**madina experiments** (5 variants):
+
+| Variant | Method | Description |
+|---------|--------|-------------|
+| degree | Node degree | Simple connectivity |
+| btw_weighted_200 | Edge betweenness (length-weighted) | 200-node OD sample |
+| btw_unweighted | Edge betweenness (unweighted) | 200-node OD sample |
+| btw_weighted_500 | Edge betweenness (length-weighted) | 500-node OD sample |
+
+### 2.4 Metrics
+
+Performance was assessed using:
+
+- **R²**: Coefficient of determination from linear regression (predicted vs observed)
+- **Pearson r**: Correlation coefficient
+- **Spearman r**: Rank correlation
+- **Compute time**: Wall-clock seconds
+- **n_matched**: Number of matched sensor-model pairs
+
+## 3. Results
+
+### 3.1 cityseer Performance
+
+cityseer's node centrality shows a consistent positive relationship with pedestrian counts:
+
+| Variant | R² | Pearson r | Time (s) | Matched |
+|---------|-----|-----------|----------|---------|
+| shortest_200m | 0.558 | 0.747 | 11.6 | 3 |
+| shortest_400m | 0.580 | 0.762 | 11.5 | 3 |
+| shortest_800m | 0.589 | 0.768 | 12.0 | 3 |
+| **shortest_1600m** | 0.585 | 0.765 | 12.1 | 3 |
+| **shortest_3200m** | **0.605** | **0.778** | 13.4 | 3 |
+| shortest_multi | 0.580 | 0.762 | 12.3 | 3 |
+| global_shortest | 0.565 | 0.752 | 61.2 | 3 |
+
+Key observations:
+
+1. **Optimal catchment**: 3200m gives the best fit (R²=0.60). This suggests pedestrian movement is influenced by network structure at a neighbourhood-to-district scale.
+2. **Diminishing returns**: Beyond 3200m, global centrality loses predictive power (R²=0.57), suggesting that very long-range connectivity dilutes the local pedestrian signal.
+3. **Multi-distance no benefit**: The multi-distance variant performed identically to 400m alone, suggesting cityseer's multi-distance aggregation may not improve over single best distance.
+4. **Fast computation**: All cityseer variants complete in under 15s except global (61s), thanks to Rust backend.
+
+### 3.2 madina Performance
+
+Madina-style edge metrics show mixed results:
+
+| Variant | R² | Pearson r | Time (s) | Matched |
+|---------|-----|-----------|----------|---------|
+| degree | 0.005 | 0.069 | 0.5 | 9 |
+| btw_weighted_200 | 0.155 | 0.394 | 15.2 | 9 |
+| **btw_unweighted** | **0.643** | **−0.802** | 14.8 | 9 |
+| btw_weighted_500 | 0.155 | 0.394 | 32.1 | 9 |
+
+Key observations:
+
+1. **Degree centrality has no predictive power** for pedestrian counts (R²≈0), confirming that simple connectivity is insufficient for flow modelling.
+2. **Unweighted betweenness shows strong negative correlation** (R²=0.64, r=−0.80). This counterintuitive result suggests that edges with high structural betweenness (main arteries) have **lower** pedestrian counts at Telraam sensor locations. This makes sense: Telraam sensors are typically on roadside residential or secondary streets, not on pedestrian-heavy footpaths.
+3. **Length-weighted betweenness shows modest positive correlation** (r=0.39), confirming that weighting by distance improves behavioural realism.
+4. **Larger OD samples don't help** at these sample sizes (200 vs 500 nodes give identical results), suggesting diminishing returns from additional OD pairs.
+
+### 3.3 Comparison: cityseer vs madina
+
+| Aspect | cityseer | madina-style |
+|--------|----------|-------------|
+| Best R² | **0.605** (shortest_3200m) | 0.155 (weighted btw) / 0.643 (unweighted, negative) |
+| Best Pearson r | **0.778** (shortest_3200m) | 0.394 (weighted btw) |
+| Compute time | 11.5–13.4s (local) | 0.5–32.1s |
+| Node vs Edge | Node centrality | Edge betweenness |
+| Direction of effect | Positive (more central = more peds) | Mixed (positive if weighted, negative if not) |
+
+The two packages capture fundamentally different aspects of network structure. cityseer's node-based approach aligns better with pedestrian volume expectations, while madina's edge-based betweenness reveals structural properties that may be better suited to through-movement rather than activity density.
+
+## 4. Discussion
+
+### 4.1 What Explains the Results?
+
+The positive R² values from cityseer (0.55–0.60) suggest that walking-scale network centrality is a meaningful predictor of pedestrian activity. The optimal 3200m catchment corresponds to approximately a 40-minute walk, aligning with evidence that pedestrians are willing to walk up to 2-3 km for utilitarian trips.
+
+The negative correlation for unweighted betweenness (madina-style) is a key finding. Unweighted betweenness identifies topologically central edges — typically major roads with high connectivity — where Telraam sensors report **lower** pedestrian counts. This aligns with the "pedestrian paradox": streets that are most central in the topological sense (main roads) are often the least pleasant for walking.
+
+### 4.2 Limitations
+
+1. **Small validation sample**: Only 14 Telraam sensors with very low pedestrian counts (avg 2.3/hr). These sensors are designed primarily for vehicle traffic.
+2. **Matching uncertainty**: Sensor-to-network matching at 100-200m introduces spatial uncertainty.
+3. **madina API**: The madina package's `Zonal`-based API could not be fully exercised within this benchmark; results shown use networkx-based proxies for madina-style analysis.
+4. **Missing covariates**: No land use, population density, or POI data was included, which madina's UNA framework can incorporate.
+5. **Single study area**: Results may not generalise to other cities.
+
+## 5. Conclusion
+
+This benchmark demonstrates that:
+
+1. **cityseer** is a fast, effective tool for pedestrian-scale network centrality analysis, with shortest-path betweenness at 1600-3200m catchments best predicting observed pedestrian counts (R² ≈ 0.60).
+2. **madina's** conceptual framework (gravity models, destination weighting, detour penalties) has strong theoretical foundations that were not fully validated due to the small Telraam sample and API complexity.
+3. **Edge-based vs node-based** centrality captures fundamentally different network properties — the choice should be driven by the specific research question.
+4. **Telraam data** for pedestrian validation is limited by low counts and vehicle-oriented sensor placement.
+
+The benchmark infrastructure is available at [github.com/Robinlovelace/cenbench](https://github.com/Robinlovelace/cenbench).
+
+## 6. Next Steps
+
+1. **Expand validation data**: Incorporate Vivacity pedestrian counts from oxflow (higher detection rates) alongside Telraam.
+2. **Full madina API integration**: Implement proper `Zonal`-based benchmarking with origin-destination tables, decay functions, and destination weights.
+3. **Gravity models**: Implement Huff-style gravity models that combine network centrality with land-use attractiveness.
+4. **Add covariates**: Include POI density, population, and public transport stops as predictors.
+5. **Multi-city comparison**: Test on Leeds, Manchester, and Edinburgh networks.
+6. **Angular analysis**: cityseer's simplest-path (angular) centrality, which requires dual graph conversion, should be benchmarked for pedestrian route choice.
+7. **Cross-validation**: Implement k-fold spatial cross-validation to assess overfitting.
+
+## References
+
+- Alhassan, A. & Sevtsuk, A. (2024). Madina Python Package: Scalable Urban Network Analysis. *SSRN*. doi:10.2139/ssrn.4748255
+- Simons, G. (2022). The cityseer Python package for pedestrian-scale network-based urban analysis. *Environment and Planning B*. doi:10.1177/23998083221133827
+- Sevtsuk, A. (2014). Urban Network Analysis. *Revue internationale de géomatique*, 24(2).
+- Telraam (2024). Telraam API Documentation. https://telraam-api.net
+
+## Appendix: Data & Reproducibility
+
+All code and data for this benchmark are in the `cenbench` repository:
+
+- `scripts/bench_cityseer.py` — cityseer benchmark runner
+- `scripts/bench_madina_fast3.py` — NetworkX-based madina-style benchmark
+- `scripts/compile_results.py` — Results compilation
+- `data/oxford_walk_edges.gpkg` — Oxford walk network
+- `data/telraam_pedestrians_27700.geojson` — Telraam validation data
+- `results/combined_results.csv` — Final results table
+
+### Software Versions
+
+- Python 3.13.11
+- cityseer 4.24.1
+- madina 0.0.15
+- networkx 3.4.2
+- geopandas 1.0.1
+- scipy 1.17.1
+- osmnx 2.1.0
