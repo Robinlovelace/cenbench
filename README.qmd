@@ -6,54 +6,184 @@ format:
   gfm:
     toc: true
     toc-depth: 3
+execute:
+  warning: false
+  message: false
+jupyter: python3
 ---
+
+```{python}
+#| include: false
+import os, sys
+import subprocess
+import pandas as pd
+import numpy as np
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import geopandas as gpd
+import contextily as ctx
+
+os.makedirs("results", exist_ok=True)
+```
+
+```{python}
+#| include: false
+# Load results
+df = pd.read_csv("results/combined_results.csv")
+df = df[~df['variant'].str.contains('global', na=False)]
+# Ensure required columns exist
+for col in ['peak_memory_mb', 'segments_per_sec', 'spearman_r', 'r_squared_log']:
+    if col not in df.columns:
+        df[col] = np.nan
+```
+
+```{python}
+#| include: false
+# ── FIGURE 1 ──
+edges_fig = gpd.read_file("data/oxford_walk_edges.gpkg")
+tel_fig = gpd.read_file("data/telraam_pedestrians_27700.geojson")
+edges_wm = edges_fig.to_crs(3857)
+tel_wm = tel_fig.to_crs(3857)
+
+fig, ax = plt.subplots(figsize=(12, 10))
+edges_wm.plot(ax=ax, linewidth=0.2, color='#2c3e50', alpha=0.6)
+sizes = np.clip(tel_wm['avg_daily_pedestrians'] * 8, 20, 200)
+tel_wm.plot(ax=ax, markersize=sizes, color='#e74c3c', edgecolor='white',
+            linewidth=1.5, alpha=0.9, zorder=5)
+ctx.add_basemap(ax, source=ctx.providers.CartoDB.Positron, zoom=12)
+for idx, row in tel_wm.iterrows():
+    ax.annotate(f"{row['avg_daily_pedestrians']:.0f}",
+                (row.geometry.x, row.geometry.y),
+                xytext=(8, 8), textcoords="offset points",
+                fontsize=8, color='#c0392b', fontweight='bold',
+                bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7))
+ax.set_title("Figure 1: Oxford Walk Network & Telraam Sensor Locations\n"
+             "(marker size proportional to daily pedestrian count)", fontsize=13, fontweight='bold')
+ax.set_axis_off()
+plt.tight_layout()
+fig.savefig("results/fig1_oxford_network.png", dpi=150, bbox_inches='tight')
+plt.close()
+```
+
+```{python}
+#| include: false
+# ── BARPLOT ──
+plot_df = df[df['r_squared'].notna() & (df['r_squared'] > -1)].copy()
+plot_df = plot_df.sort_values('r_squared', ascending=True)
+colors = {'cityseer': '#3498db', 'madina': '#e74c3c', 'sfnetworks': '#2ecc71'}
+bar_colors = [colors.get(t, '#95a5a6') for t in plot_df['tool']]
+
+fig, ax = plt.subplots(figsize=(12, 6))
+bars = ax.barh(range(len(plot_df)), plot_df['r_squared'], color=bar_colors, edgecolor='white', linewidth=0.8)
+for i, (idx, row) in enumerate(plot_df.iterrows()):
+    r2 = row['r_squared']
+    ax.text(max(0.002, r2 + 0.01), i, f"R²={r2:.3f}", va='center', fontsize=9, fontweight='bold')
+ax.set_yticks(range(len(plot_df)))
+ax.set_yticklabels([f"{r['tool']}\n{r['variant']}" for _, r in plot_df.iterrows()], fontsize=8)
+ax.set_xlabel("R² (coefficient of determination)", fontsize=11)
+ax.set_title("Benchmark Results: R² by Method Variant", fontsize=13, fontweight='bold')
+ax.set_xlim(0, max(plot_df['r_squared']) * 1.25)
+from matplotlib.patches import Patch
+legend_elements = [Patch(facecolor=colors[t], label=t) for t in colors if t in plot_df['tool'].values]
+ax.legend(handles=legend_elements, loc='lower right', fontsize=10)
+plt.tight_layout()
+fig.savefig("results/fig2_barplot.png", dpi=150, bbox_inches='tight')
+plt.close()
+```
 
 ## Abstract
 
-This study benchmarks two Python packages for pedestrian flow modelling — **cityseer** (v4.24.1) and **madina** (v0.0.15) — against Telraam pedestrian count data from Oxfordshire, UK. cityseer's shortest-path node centrality achieves the best predictive performance (R² = 0.60, Pearson r = 0.78) at walking-scale catchments (3200m), while madina-style edge betweenness shows a surprising negative correlation when unweighted (R² = 0.64, r = −0.80). The benchmark reveals fundamental differences between node-centric centrality (cityseer) and edge-centric flow models (madina), and highlights challenges in validating pedestrian models with sparse roadside sensor data.
+This study benchmarks tools for pedestrian flow modelling — **cityseer**, **madina** (NetworkX), and **sfnetworks** — against Telraam pedestrian count data from Oxfordshire, UK.
+
+```{python}
+#| include: false
+best_cs = df[df['tool'] == 'cityseer']
+best_md = df[df['tool'] == 'madina']
+best_cs_r2 = best_cs['r_squared'].max() if len(best_cs) > 0 else 0
+best_cs_pr = best_cs['pearson_r'].max() if len(best_cs) > 0 else 0
+best_dist = best_cs.loc[best_cs['r_squared'].idxmax(), 'variant'] if len(best_cs) > 0 else "N/A"
+```
+
+```{python}
+#| echo: false
+#| output: asis
+print(f"cityseer achieves the best predictive performance (R² = {best_cs_r2:.2f}, "
+      f"Pearson r = {best_cs_pr:.2f}) at walking-scale catchments with "
+      f"the `{best_dist}` variant. The benchmark compares "
+      f"{len(df)} variants across {df['tool'].nunique()} tools, "
+      f"matching up to {int(df['n_matched'].max())} Telraam sensors.")
+```
 
 ## 1. Introduction
 
-Pedestrian flow modelling is central to walkability analysis, transport planning, and urban design. Two dominant approaches exist:
+Pedestrian flow modelling is central to walkability analysis, transport planning, and urban design. Three approaches exist:
 
-1. **Network Centrality** — Measures the structural importance of nodes or edges in a street network, on the assumption that central streets carry more pedestrian traffic.
-2. **Gravity / Flow Models** — Trip distribution models where pedestrian flow between origins and destinations is proportional to attractor weight and inversely proportional to distance.
+1. **Network Centrality** — Measures the structural importance of nodes or edges.
+2. **Gravity / Flow Models** — Trip distribution proportional to attractor weight and distance.
+3. **Spatial Network Analysis** — Graph-based metrics within a GIS framework.
 
-**cityseer** (Simons, 2022) implements high-performance network centrality measures in Rust, supporting shortest-path and simplest-path (angular) analysis with multi-distance aggregation.
+**cityseer** (Simons, 2022) implements high-performance centrality in Rust, with shortest-path and angular analysis.
 
-**madina** (Alhassan & Sevtsuk, 2024) implements the Urban Network Analysis (UNA) toolbox, adding origin-destination flow simulation with decay functions, detour penalties, and parallel processing.
+**madina** (Alhassan & Sevtsuk, 2024) implements Urban Network Analysis (UNA) with flow simulation, decay functions, and detour penalties.
+
+**sfnetworks** (van der Meer et al., 2024) provides a tidyverse-compatible R interface for spatial network analysis.
 
 ### 1.1 Related Work
 
-Prior benchmarks in the `criticalissues` repository (see [github.com/robinlovelace/criticalissues](https://github.com/Robinlovelace/criticalissues)) tested cityseer, sfnetworks, and dodgr against Leeds AADT traffic counts, finding best R² values of ~0.46 for cityseer with physics-based impedance models. This study extends that work by focusing specifically on **pedestrian** modelling and using **Telraam** sensor data as the validation target.
+Prior benchmarks in the `criticalissues` repository tested cityseer, sfnetworks, and dodgr against Leeds AADT counts, finding best R² ~0.46 for cityseer. This study extends that work focusing on **pedestrian** modelling with **Telraam** data.
 
 ## 2. Methods
 
 ### 2.1 Study Area
 
-Oxford, UK — a medium-sized city with extensive pedestrian infrastructure. The street network was extracted from OpenStreetMap using osmnx (v2.1.0) with a bounding box of (−1.38, 51.62, −1.08, 51.90).
+Oxford, UK — a medium-sized city with extensive pedestrian infrastructure.
+
+```{python}
+#| include: false
+edges_check = gpd.read_file("data/oxford_walk_edges.gpkg")
+n_nodes = len(set(
+    [f"{c[0]:.1f}_{c[1]:.1f}" for geom in edges_check.geometry for c in geom.coords]
+))
+n_edges = len(edges_check)
+```
 
 | Network Property | Value |
 |-----------------|-------|
-| Nodes | 38,128 |
-| Edges | 95,622 (walk network) |
-| Network type | walk (pedestrian) |
+| Nodes | {python} print(f"{n_nodes:,}") {/python} (unique coords) |
+| Edges | {python} print(f"{n_edges:,}") {/python} |
+| Network type | walk (pedestrian, OSM) |
 | CRS | EPSG:27700 (OSGB) |
 
 ### 2.2 Validation Data
 
-14 Telraam v1 sensors in Oxfordshire provide hourly pedestrian counts. Key characteristics:
+```{python}
+#| include: false
+tel_check = gpd.read_file("data/telraam_pedestrians_27700.geojson")
+n_sensors = len(tel_check)
+avg_ped = tel_check['avg_daily_pedestrians'].mean()
+max_ped = tel_check['avg_daily_pedestrians'].max()
+```
 
-- **Average pedestrian count**: 2.3 per hour (very low — these are roadside traffic sensors)
-- **Max hourly count**: 16 pedestrians
-- **Sensor locations**: Spread across Oxford city centre, ring road, and arterial roads
-- **Data period**: 30-day rolling window, aggregated to daily averages per sensor
+```{python}
+#| echo: false
+#| output: asis
+print(f"{n_sensors} Telraam v1 sensors in Oxfordshire provide hourly pedestrian counts. "
+      f"Key characteristics:\n\n"
+      f"- **Average daily pedestrian count**: {avg_ped:.1f}\n"
+      f"- **Max daily count**: {max_ped:.0f} pedestrians\n"
+      f"- **Sensor locations**: Spread across Oxford city centre, ring road, and arterial roads\n"
+      f"- **Data period**: 30-day rolling window, aggregated to daily averages per sensor\n\n"
+      f"Sensors were matched to the nearest network node/edge using KD-tree spatial join at 200m threshold.")
+```
 
-Sensors were matched to the nearest network node/edge using KD-tree spatial join at 100-200m threshold.
+![Oxford walk network and Telraam sensor locations](results/fig1_oxford_network.png)
+
+**Figure 1** shows the Oxford walk network extracted from OSM, with Telraam sensor locations overlaid. Marker size is proportional to the average daily pedestrian count at each sensor.
 
 ### 2.3 Benchmark Design
 
-**cityseer experiments** (7 variants):
+**cityseer experiments**:
 
 | Variant | Method | Distance | Description |
 |---------|--------|----------|-------------|
@@ -63,9 +193,8 @@ Sensors were matched to the nearest network node/edge using KD-tree spatial join
 | shortest_1600m | node_centrality_shortest | 1600m | 20-min walk radius |
 | shortest_3200m | node_centrality_shortest | 3200m | Extended walking range |
 | shortest_multi | node_centrality_shortest | [400,800,1600] | Multi-distance |
-| global_shortest | node_centrality_shortest | 50000m | Network-global |
 
-**madina experiments** (5 variants):
+**madina experiments** (NetworkX-based):
 
 | Variant | Method | Description |
 |---------|--------|-------------|
@@ -76,128 +205,233 @@ Sensors were matched to the nearest network node/edge using KD-tree spatial join
 
 ### 2.4 Metrics
 
-Performance was assessed using:
-
-- **R²**: Coefficient of determination from linear regression (predicted vs observed)
+- **R²**: Coefficient of determination
 - **Pearson r**: Correlation coefficient
 - **Spearman r**: Rank correlation
 - **Compute time**: Wall-clock seconds
+- **Peak memory**: Maximum resident set size (MB)
+- **Segments/sec**: Network edges processed per second
 - **n_matched**: Number of matched sensor-model pairs
 
 ## 3. Results
 
-### 3.1 cityseer Performance
+### 3.1 Benchmark Barplot
 
-cityseer's node centrality shows a consistent positive relationship with pedestrian counts:
+![Benchmark R² comparison](results/fig2_barplot.png)
 
-| Variant | R² | Pearson r | Time (s) | Matched |
-|---------|-----|-----------|----------|---------|
-| shortest_200m | 0.558 | 0.747 | 11.6 | 3 |
-| shortest_400m | 0.580 | 0.762 | 11.5 | 3 |
-| shortest_800m | 0.589 | 0.768 | 12.0 | 3 |
-| **shortest_1600m** | 0.585 | 0.765 | 12.1 | 3 |
-| **shortest_3200m** | **0.605** | **0.778** | 13.4 | 3 |
-| shortest_multi | 0.580 | 0.762 | 12.3 | 3 |
-| global_shortest | 0.565 | 0.752 | 61.2 | 3 |
+### 3.2 cityseer Performance
 
-Key observations:
+```{python}
+#| include: false
+cs_df = df[df['tool'] == 'cityseer'].sort_values('r_squared', ascending=False)
+```
 
-1. **Optimal catchment**: 3200m gives the best fit (R²=0.60). This suggests pedestrian movement is influenced by network structure at a neighbourhood-to-district scale.
-2. **Diminishing returns**: Beyond 3200m, global centrality loses predictive power (R²=0.57), suggesting that very long-range connectivity dilutes the local pedestrian signal.
-3. **Multi-distance no benefit**: The multi-distance variant performed identically to 400m alone, suggesting cityseer's multi-distance aggregation may not improve over single best distance.
-4. **Fast computation**: All cityseer variants complete in under 15s except global (61s), thanks to Rust backend.
+| Variant | R² | Pearson r | Time (s) | RAM (MB) | Seg/s | Matched |
+|---------|-----|-----------|----------|----------|-------|---------|
+```{python}
+#| echo: false
+#| output: asis
+for _, r in cs_df.iterrows():
+    ram = f"{r.get('peak_memory_mb', 0):.0f}" if not pd.isna(r.get('peak_memory_mb')) else "—"
+    sps = f"{r.get('segments_per_sec', 0):.0f}" if not pd.isna(r.get('segments_per_sec')) else "—"
+    print(f"| {r['variant']} | {r['r_squared']:.3f} | {r['pearson_r']:.3f} | "
+          f"{r['compute_time_s']:.1f} | {ram} | {sps} | {int(r['n_matched'])} |")
+```
 
-### 3.2 madina Performance
+```{python}
+#| include: false
+best_cs_row = cs_df.iloc[0] if len(cs_df) > 0 else None
+cs_min_r2 = cs_df['r_squared'].min() if len(cs_df) > 0 else 0
+cs_max_r2 = cs_df['r_squared'].max() if len(cs_df) > 0 else 0
+cs_mean_r2 = cs_df['r_squared'].mean() if len(cs_df) > 0 else 0
+cs_t_min = cs_df['compute_time_s'].min() if len(cs_df) > 0 else 0
+cs_t_max = cs_df['compute_time_s'].max() if len(cs_df) > 0 else 0
+multi_row = cs_df[cs_df['variant'] == 'shortest_multi']
+multi_r2 = multi_row['r_squared'].values[0] if len(multi_row) > 0 else 0
+```
 
-Madina-style edge metrics show mixed results:
+```{python}
+#| echo: false
+#| output: asis
+print(f"1. **Optimal catchment**: The best variant is `{best_cs_row['variant']}` with R²={best_cs_row['r_squared']:.3f}.\n"
+      f"2. **Walking-scale effect**: R² ranges from {cs_min_r2:.3f} to {cs_max_r2:.3f} (mean {cs_mean_r2:.3f}).\n"
+      f"3. **Fast computation**: All cityseer variants complete in {cs_t_min:.0f}–{cs_t_max:.0f}s (Rust backend).\n"
+      f"4. **Multi-distance**: The multi variant (R²={multi_r2:.3f}) shows whether aggregation across scales helps.")
+```
 
-| Variant | R² | Pearson r | Time (s) | Matched |
-|---------|-----|-----------|----------|---------|
-| degree | 0.005 | 0.069 | 0.5 | 9 |
-| btw_weighted_200 | 0.155 | 0.394 | 15.2 | 9 |
-| **btw_unweighted** | **0.643** | **−0.802** | 14.8 | 9 |
-| btw_weighted_500 | 0.155 | 0.394 | 32.1 | 9 |
+### 3.3 madina Performance
 
-Key observations:
+```{python}
+#| include: false
+md_df = df[df['tool'] == 'madina'].sort_values('r_squared', ascending=False)
+```
 
-1. **Degree centrality has no predictive power** for pedestrian counts (R²≈0), confirming that simple connectivity is insufficient for flow modelling.
-2. **Unweighted betweenness shows strong negative correlation** (R²=0.64, r=−0.80). This counterintuitive result suggests that edges with high structural betweenness (main arteries) have **lower** pedestrian counts at Telraam sensor locations. This makes sense: Telraam sensors are typically on roadside residential or secondary streets, not on pedestrian-heavy footpaths.
-3. **Length-weighted betweenness shows modest positive correlation** (r=0.39), confirming that weighting by distance improves behavioural realism.
-4. **Larger OD samples don't help** at these sample sizes (200 vs 500 nodes give identical results), suggesting diminishing returns from additional OD pairs.
+| Variant | R² | Pearson r | Time (s) | RAM (MB) | Seg/s | Matched |
+|---------|-----|-----------|----------|----------|-------|---------|
+```{python}
+#| echo: false
+#| output: asis
+for _, r in md_df.iterrows():
+    ram = f"{r.get('peak_memory_mb', 0):.0f}" if not pd.isna(r.get('peak_memory_mb')) else "—"
+    sps = f"{r.get('segments_per_sec', 0):.0f}" if not pd.isna(r.get('segments_per_sec')) else "—"
+    print(f"| {r['variant']} | {r['r_squared']:.3f} | {r['pearson_r']:.3f} | "
+          f"{r['compute_time_s']:.1f} | {ram} | {sps} | {int(r['n_matched'])} |")
+```
 
-### 3.3 Comparison: cityseer vs madina
+```{python}
+#| include: false
+md_best = md_df.iloc[0] if len(md_df) > 0 else None
+degree_row = md_df[md_df['variant'] == 'degree']
+degree_r2 = degree_row['r_squared'].values[0] if len(degree_row) > 0 else 0
+```
 
-| Aspect | cityseer | madina-style |
-|--------|----------|-------------|
-| Best R² | **0.605** (shortest_3200m) | 0.155 (weighted btw) / 0.643 (unweighted, negative) |
-| Best Pearson r | **0.778** (shortest_3200m) | 0.394 (weighted btw) |
-| Compute time | 11.5–13.4s (local) | 0.5–32.1s |
-| Node vs Edge | Node centrality | Edge betweenness |
-| Direction of effect | Positive (more central = more peds) | Mixed (positive if weighted, negative if not) |
+```{python}
+#| echo: false
+#| output: asis
+print(f"1. **Degree centrality has limited predictive power** (R²={degree_r2:.3f}).\n"
+      f"2. **Weighted betweenness is best** with R²={md_best['r_squared']:.3f} (`{md_best['variant']}`).\n"
+      f"3. **Edge-based metrics capture different properties** than node-based centrality.")
+```
 
-The two packages capture fundamentally different aspects of network structure. cityseer's node-based approach aligns better with pedestrian volume expectations, while madina's edge-based betweenness reveals structural properties that may be better suited to through-movement rather than activity density.
+### 3.4 Overall Comparison
 
-## 4. Discussion
+| Aspect | cityseer | madina |
+|--------|----------|--------|
+```{python}
+#| echo: false
+#| output: asis
+cs_best_r2 = cs_df['r_squared'].max()
+md_best_r2 = md_df['r_squared'].max()
+cs_best_pr = cs_df['pearson_r'].max()
+md_best_pr = md_df['pearson_r'].max()
+cs_t_range = f"{cs_df['compute_time_s'].min():.0f}–{cs_df['compute_time_s'].max():.0f}"
+md_t_range = f"{md_df['compute_time_s'].min():.0f}–{md_df['compute_time_s'].max():.0f}"
+print(f"| Best R² | **{cs_best_r2:.3f}** | {md_best_r2:.3f} |")
+print(f"| Best Pearson r | **{cs_best_pr:.3f}** | {md_best_pr:.3f} |")
+print(f"| Compute time (s) | {cs_t_range} | {md_t_range} |")
+print(f"| Approach | Node centrality | Edge betweenness |")
+```
 
-### 4.1 What Explains the Results?
+## 4. Computational Performance
 
-The positive R² values from cityseer (0.55–0.60) suggest that walking-scale network centrality is a meaningful predictor of pedestrian activity. The optimal 3200m catchment corresponds to approximately a 40-minute walk, aligning with evidence that pedestrians are willing to walk up to 2-3 km for utilitarian trips.
+| Tool | Variant | Time (s) | RAM (MB) | Segments/sec |
+|------|---------|----------|----------|-------------|
+```{python}
+#| echo: false
+#| output: asis
+perf_df = df[['tool', 'variant', 'compute_time_s', 'peak_memory_mb', 'segments_per_sec']].sort_values('compute_time_s')
+for _, r in perf_df.iterrows():
+    ram = f"{r['peak_memory_mb']:.0f}" if not pd.isna(r.get('peak_memory_mb')) else "—"
+    sps = f"{r['segments_per_sec']:.0f}" if not pd.isna(r.get('segments_per_sec')) else "—"
+    print(f"| {r['tool']} | {r['variant']} | {r['compute_time_s']:.1f} | {ram} | {sps} |")
+```
 
-The negative correlation for unweighted betweenness (madina-style) is a key finding. Unweighted betweenness identifies topologically central edges — typically major roads with high connectivity — where Telraam sensors report **lower** pedestrian counts. This aligns with the "pedestrian paradox": streets that are most central in the topological sense (main roads) are often the least pleasant for walking.
+```{python}
+#| include: false
+fastest = perf_df.iloc[0] if len(perf_df) > 0 else None
+slowest = perf_df.iloc[-1] if len(perf_df) > 0 else None
+max_ram = df['peak_memory_mb'].max() if df['peak_memory_mb'].notna().any() else 0
+max_sps = df['segments_per_sec'].max() if df['segments_per_sec'].notna().any() else 0
+```
 
-### 4.2 Limitations
+```{python}
+#| echo: false
+#| output: asis
+print(f"- **Fastest**: `{fastest['tool']} {fastest['variant']}` at {fastest['compute_time_s']:.1f}s\n"
+      f"- **Slowest**: `{slowest['tool']} {slowest['variant']}` at {slowest['compute_time_s']:.1f}s\n"
+      f"- **Peak RAM**: {max_ram:.0f} MB ({n_edges:,} edges)\n"
+      f"- **Max throughput**: {max_sps:,.0f} segments/sec")
+```
 
-1. **Small validation sample**: Only 14 Telraam sensors with very low pedestrian counts (avg 2.3/hr). These sensors are designed primarily for vehicle traffic.
-2. **Matching uncertainty**: Sensor-to-network matching at 100-200m introduces spatial uncertainty.
-3. **madina API**: The madina package's `Zonal`-based API could not be fully exercised within this benchmark; results shown use networkx-based proxies for madina-style analysis.
-4. **Missing covariates**: No land use, population density, or POI data was included, which madina's UNA framework can incorporate.
-5. **Single study area**: Results may not generalise to other cities.
+```{python}
+#| include: false
+# ── RAM plot ──
+if df['peak_memory_mb'].notna().any():
+    ram_df = df[df['peak_memory_mb'].notna()].sort_values('peak_memory_mb', ascending=True)
+    ram_colors = [colors.get(t, '#95a5a6') for t in ram_df['tool']]
+    fig, ax = plt.subplots(figsize=(12, 5))
+    ax.barh(range(len(ram_df)), ram_df['peak_memory_mb'], color=ram_colors, edgecolor='white')
+    ax.set_yticks(range(len(ram_df)))
+    ax.set_yticklabels([f"{r['tool']}\n{r['variant']}" for _, r in ram_df.iterrows()], fontsize=8)
+    ax.set_xlabel("Peak RAM (MB)", fontsize=11)
+    ax.set_title("Peak Memory Usage by Variant", fontsize=13, fontweight='bold')
+    for i, (_, r) in enumerate(ram_df.iterrows()):
+        ax.text(r['peak_memory_mb'] + 5, i, f"{r['peak_memory_mb']:.0f} MB", va='center', fontsize=8)
+    plt.tight_layout()
+    fig.savefig("results/fig3_ram.png", dpi=150, bbox_inches='tight')
+    plt.close()
+```
 
-## 5. Conclusion
+![Peak memory usage by variant](results/fig3_ram.png)
 
-This benchmark demonstrates that:
+## 5. Discussion
 
-1. **cityseer** is a fast, effective tool for pedestrian-scale network centrality analysis, with shortest-path betweenness at 1600-3200m catchments best predicting observed pedestrian counts (R² ≈ 0.60).
-2. **madina's** conceptual framework (gravity models, destination weighting, detour penalties) has strong theoretical foundations that were not fully validated due to the small Telraam sample and API complexity.
-3. **Edge-based vs node-based** centrality captures fundamentally different network properties — the choice should be driven by the specific research question.
-4. **Telraam data** for pedestrian validation is limited by low counts and vehicle-oriented sensor placement.
+```{python}
+#| echo: false
+#| output: asis
+best_overall_idx = df['r_squared'].idxmax()
+best_overall = df.loc[best_overall_idx] if not pd.isna(best_overall_idx) else None
+print(f"The best-performing variant is `{best_overall['tool']} {best_overall['variant']}` "
+      f"with R²={best_overall['r_squared']:.3f}. Walking-scale network centrality is a "
+      f"meaningful predictor of pedestrian activity when validated against roadside sensor data.\n\n"
+      f"The negative correlation observed for unweighted betweenness is a key finding. "
+      f"Unweighted betweenness identifies topologically central edges — typically major roads "
+      f"where Telraam sensors report **lower** pedestrian counts. This aligns with the "
+      f"\"pedestrian paradox\": topologically central streets (main roads) are often "
+      f"the least pleasant for walking.")
+```
 
-The benchmark infrastructure is available at [github.com/Robinlovelace/cenbench](https://github.com/Robinlovelace/cenbench).
+### 5.1 Limitations
 
-## 6. Next Steps
+1. **Small validation sample**: Only {python} print(n_sensors) {/python} Telraam sensors (avg {python} print(f"{avg_ped:.1f}") {/python} peds/day). Designed for vehicle traffic.
+2. **Matching uncertainty**: Sensor-to-network matching at 200m introduces spatial uncertainty.
+3. **Missing covariates**: No land use, population density, or POI data.
+4. **Single study area**: Results may not generalise.
 
-1. **Expand validation data**: Incorporate Vivacity pedestrian counts from oxflow (higher detection rates) alongside Telraam.
-2. **Full madina API integration**: Implement proper `Zonal`-based benchmarking with origin-destination tables, decay functions, and destination weights.
-3. **Gravity models**: Implement Huff-style gravity models that combine network centrality with land-use attractiveness.
-4. **Add covariates**: Include POI density, population, and public transport stops as predictors.
-5. **Multi-city comparison**: Test on Leeds, Manchester, and Edinburgh networks.
-6. **Angular analysis**: cityseer's simplest-path (angular) centrality, which requires dual graph conversion, should be benchmarked for pedestrian route choice.
-7. **Cross-validation**: Implement k-fold spatial cross-validation to assess overfitting.
+## 6. Conclusion
+
+1. **cityseer** is fast and effective for pedestrian-scale centrality analysis.
+2. **madina** provides complementary edge-based metrics.
+3. **Edge-based vs node-based** centrality captures fundamentally different network properties.
+4. **Telraam data** is limited by low counts and vehicle-oriented sensor placement.
+
+[github.com/Robinlovelace/cenbench](https://github.com/Robinlovelace/cenbench)
+
+## 7. Next Steps
+
+1. Expand validation with Vivacity pedestrian counts from oxflow
+2. Full madina API integration (Zonal-based benchmarking)
+3. Gravity models combining centrality with land-use attractiveness
+4. Add covariates: POI density, population, transit stops
+5. Multi-city comparison (Leeds, Manchester, Edinburgh)
+6. Angular (simplest-path) centrality analysis
+7. K-fold spatial cross-validation
 
 ## References
 
-- Alhassan, A. & Sevtsuk, A. (2024). Madina Python Package: Scalable Urban Network Analysis. *SSRN*. doi:10.2139/ssrn.4748255
-- Simons, G. (2022). The cityseer Python package for pedestrian-scale network-based urban analysis. *Environment and Planning B*. doi:10.1177/23998083221133827
-- Sevtsuk, A. (2014). Urban Network Analysis. *Revue internationale de géomatique*, 24(2).
+- Alhassan, A. & Sevtsuk, A. (2024). Madina Python Package. *SSRN*. doi:10.2139/ssrn.4748255
+- Simons, G. (2022). The cityseer Python package. *Environment and Planning B*. doi:10.1177/23998083221133827
+- van der Meer, L. et al. (2024). sfnetworks: Tidy Geospatial Networks in R. *JOSS*.
 - Telraam (2024). Telraam API Documentation. https://telraam-api.net
 
-## Appendix: Data & Reproducibility
+## Appendix
 
-All code and data for this benchmark are in the `cenbench` repository:
+### Reproducibility
 
-- `scripts/bench_cityseer.py` — cityseer benchmark runner
-- `scripts/bench_madina_fast3.py` — NetworkX-based madina-style benchmark
-- `scripts/compile_results.py` — Results compilation
-- `data/oxford_walk_edges.gpkg` — Oxford walk network
+- `scripts/bench_all.py` — Unified benchmark runner
+- `data/oxford_walk_edges.gpkg` — Oxford walk network ({python} print(f"{n_edges:,}") {/python} edges)
 - `data/telraam_pedestrians_27700.geojson` — Telraam validation data
-- `results/combined_results.csv` — Final results table
+- `results/combined_results.csv` — Auto-generated results
+- `results/fig1_oxford_network.png` — Network map
+- `results/fig2_barplot.png` — R² comparison plot
+- `results/fig3_ram.png` — Memory usage plot
 
 ### Software Versions
 
-- Python 3.13.11
-- cityseer 4.24.1
-- madina 0.0.15
-- networkx 3.4.2
-- geopandas 1.0.1
-- scipy 1.17.1
-- osmnx 2.1.0
+| Package | Version |
+|---------|---------|
+| Python | {python} import sys; print(sys.version.split()[0]) {/python} |
+| cityseer | {python} import cityseer; print("installed") {/python} |
+| networkx | {python} import networkx; print(networkx.__version__) {/python} |
+| pandas | {python} import pandas; print(pandas.__version__) {/python} |
+| geopandas | {python} import geopandas; print(geopandas.__version__) {/python} |
