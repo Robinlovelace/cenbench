@@ -100,18 +100,23 @@ This study benchmarks tools for pedestrian flow modelling — **cityseer**, **ma
 #| include: false
 best_cs = df[df['tool'] == 'cityseer']
 best_md = df[df['tool'] == 'madina']
+best_sf = df[df['tool'] == 'sfnetworks']
 best_cs_r2 = best_cs['r_squared'].max() if len(best_cs) > 0 else 0
 best_cs_pr = best_cs['pearson_r'].max() if len(best_cs) > 0 else 0
 best_dist = best_cs.loc[best_cs['r_squared'].idxmax(), 'variant'] if len(best_cs) > 0 else "N/A"
+sf_best_pr = best_sf['pearson_r'].max() if len(best_sf) > 0 else 0
+uw_pearson = best_md[best_md['variant']=='btw_unweighted']['pearson_r'].values[0] if len(best_md[best_md['variant']=='btw_unweighted']) > 0 else 0
 ```
 
 ```{python}
 #| echo: false
 #| output: asis
-print(f"cityseer achieves the best predictive performance (R² = {best_cs_r2:.2f}, "
-      f"Pearson r = {best_cs_pr:.2f}) at walking-scale catchments with "
-      f"the `{best_dist}` variant. The benchmark compares "
-      f"{len(df)} variants across {df['tool'].nunique()} tools, "
+print(f"cityseer achieves the strongest positive correlation with pedestrian counts "
+      f"(Pearson r = {best_cs_pr:.2f}, R² = {best_cs_r2:.2f}) at walking-scale "
+      f"catchments (`{best_dist}`). madina-style unweighted betweenness shows "
+      f"a counterintuitive negative correlation (r = {uw_pearson:.2f}). "
+      f"sfnetworks provides an R-based alternative with modest correlation (r = {sf_best_pr:.2f}). "
+      f"The benchmark compares {len(df)} variants across {df['tool'].nunique()} tools, "
       f"matching up to {int(df['n_matched'].max())} Telraam sensors.")
 ```
 
@@ -293,23 +298,60 @@ print(f"1. **Degree centrality has limited predictive power** (R²={degree_r2:.3
       f"3. **Edge-based metrics capture different properties** than node-based centrality.")
 ```
 
-### 3.4 Overall Comparison
+### 3.4 sfnetworks Performance
 
-| Aspect | cityseer | madina |
-|--------|----------|--------|
+```{python}
+#| include: false
+sf_df = df[df['tool'] == 'sfnetworks']
+```
+
+| Variant | R² | Pearson r | Time (s) | RAM (MB) | Seg/s | Matched |
+|---------|-----|-----------|----------|----------|-------|---------|
+```{python}
+#| echo: false
+#| output: asis
+for _, r in sf_df.iterrows():
+    ram = f"{r.get('peak_memory_mb', 0):.0f}" if not pd.isna(r.get('peak_memory_mb')) else "—"
+    sps = f"{r.get('segments_per_sec', 0):.0f}" if not pd.isna(r.get('segments_per_sec')) else "—"
+    print(f"| {r['variant']} | {r['r_squared']:.3f} | {r['pearson_r']:.3f} | "
+          f"{r['compute_time_s']:.1f} | {ram} | {sps} | {int(r['n_matched'])} |")
+```
+
+```{python}
+#| echo: false
+#| output: asis
+if len(sf_df) > 0:
+    sf_r2 = sf_df['r_squared'].values[0]
+    sf_time = sf_df['compute_time_s'].values[0]
+    sf_pr = sf_df['pearson_r'].values[0]
+    print(f"sfnetworks edge betweenness yields R²={sf_r2:.3f} (Pearson r={sf_pr:.3f}) "
+          f"in {sf_time:.0f}s. The R-based workflow provides native spatial indexing "
+          f"and tidyverse integration, though full-network betweenness is computationally "
+          f"expensive on a 95K-edge graph.")
+else:
+    print("sfnetworks results pending.")
+```
+
+### 3.5 Overall Comparison
+
+| Aspect | cityseer | madina | sfnetworks |
+|--------|----------|--------|------------|
 ```{python}
 #| echo: false
 #| output: asis
 cs_best_r2 = cs_df['r_squared'].max()
 md_best_r2 = md_df['r_squared'].max()
+sf_best_r2 = sf_df['r_squared'].max() if len(sf_df) > 0 else 0
 cs_best_pr = cs_df['pearson_r'].max()
 md_best_pr = md_df['pearson_r'].max()
+sf_best_pr = sf_df['pearson_r'].max() if len(sf_df) > 0 else 0
 cs_t_range = f"{cs_df['compute_time_s'].min():.0f}–{cs_df['compute_time_s'].max():.0f}"
 md_t_range = f"{md_df['compute_time_s'].min():.0f}–{md_df['compute_time_s'].max():.0f}"
-print(f"| Best R² | **{cs_best_r2:.3f}** | {md_best_r2:.3f} |")
-print(f"| Best Pearson r | **{cs_best_pr:.3f}** | {md_best_pr:.3f} |")
-print(f"| Compute time (s) | {cs_t_range} | {md_t_range} |")
-print(f"| Approach | Node centrality | Edge betweenness |")
+sf_t = f"{sf_df['compute_time_s'].values[0]:.0f}" if len(sf_df) > 0 else "N/A"
+print(f"| Best R² | **{cs_best_r2:.3f}** | {md_best_r2:.3f} | {sf_best_r2:.3f} |")
+print(f"| Best Pearson r | **{cs_best_pr:.3f}** | {md_best_pr:.3f} | {sf_best_pr:.3f} |")
+print(f"| Compute time (s) | {cs_t_range} | {md_t_range} | {sf_t} |")
+print(f"| Language | Python (Rust) | Python | R |")
 ```
 
 ## 4. Computational Performance
