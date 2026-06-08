@@ -103,11 +103,10 @@ def build_simple_graph(edges_gdf):
             continue
         sk = f"{coords[0][0]:.4f}_{coords[0][1]:.4f}"
         ek = f"{coords[-1][0]:.4f}_{coords[-1][1]:.4f}"
-        eid = str(row.get("osmid", idx))
         G.add_node(sk, x=coords[0][0], y=coords[0][1])
         G.add_node(ek, x=coords[-1][0], y=coords[-1][1])
-        G.add_edge(sk, ek, edge_id=eid, length=row.geometry.length)
-        edge_id_map[(sk, ek)] = eid
+        G.add_edge(sk, ek, edge_id=idx, length=row.geometry.length)
+        edge_id_map[(sk, ek)] = idx
     return G, edge_id_map
 
 
