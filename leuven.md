@@ -17,7 +17,7 @@ Robin Lovelace
   - [3.4 sfnetworks Performance](#34-sfnetworks-performance)
   - [3.5 Overall Comparison](#35-overall-comparison)
   - [3.6 Leuven vs Oxford Comparison](#36-leuven-vs-oxford-comparison)
-- [4. Computational Performance](#4-computational-performance)
+- [Performance](#performance)
 - [5. Discussion](#5-discussion)
   - [5.1 Limitations](#51-limitations)
   - [5.2 Implications for Multi-City Benchmarking](#52-implications-for-multi-city-benchmarking)
@@ -189,30 +189,11 @@ Key differences:
 4.  **madina degree leads**: Simple node degree outperforms sophisticated centrality methods, suggesting that connectivity alone captures the inverse pedestrian-centrality relationship.
 5.  **sfnetworks weaker in Leuven**: Edge betweenness R² drops from 0.097 (Oxford) to 0.017 (Leuven).
 
-## 4. Computational Performance
+## Performance
 
-| Tool       | Variant          | Time (s) | RAM (MB) | Segments/sec |
-|------------|------------------|----------|----------|--------------|
-| cityseer   | shortest_400m    | 0.1      | 375      | 170648       |
-| cityseer   | shortest_200m    | 0.1      | 374      | 156260       |
-| cityseer   | shortest_800m    | 0.1      | 377      | 165732       |
-| cityseer   | shortest_1600m   | 0.3      | 395      | 59510        |
-| cityseer   | shortest_3200m   | 0.6      | 421      | 31366        |
-| madina     | degree           | 0.7      | 431      | 26059        |
-| madina     | btw_weighted_100 | 1.7      | 428      | 11502        |
-| cityseer   | angular_800m     | 1.7      | 410      | 11246        |
-| madina     | btw_weighted_200 | 2.9      | 428      | 6569         |
-| sfnetworks | edge_betweenness | 5.4      | 450      | 3540         |
-| madina     | btw_weighted_500 | 6.8      | 429      | 2832         |
-| cityseer   | angular_3200m    | 13.6     | 421      | 1406         |
-| madina     | gravity_800m     | 17.2     | 431      | 1112         |
+![Leuven performance: throughput (left) and memory (right)](results/leuven_fig3_performance.png)
 
-- **Fastest**: `cityseer shortest_400m` at 0.1s
-- **Slowest**: `madina gravity_800m` at 17.2s
-- **Peak RAM**: 450 MB (19,118 edges)
-- **Max throughput**: 170,648 segments/sec
-
-![Leuven peak memory usage by variant](results/leuven_fig3_ram.png)
+**cityseer shortest_400m** is fastest at 0.1s, processing **170,648** segments/sec. Memory ranges from **374** to **450** MB across all variants.
 
 ## 5. Discussion
 
@@ -274,7 +255,7 @@ The contrasting results between Oxford (positive correlations, cityseer leading)
 - `results/leuven_results.csv` — Auto-generated results
 - `results/leuven_fig1_network.png` — Network map
 - `results/leuven_fig2_barplot.png` — R² comparison plot
-- `results/leuven_fig3_ram.png` — Memory usage plot
+- `results/leuven_fig3_performance.png` — Speed and memory comparison
 
 ### Software Versions
 
