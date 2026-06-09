@@ -23,6 +23,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import geopandas as gpd
 import contextily as ctx
+from IPython.display import display, Markdown
 
 os.makedirs("results", exist_ok=True)
 ```
@@ -32,7 +33,6 @@ os.makedirs("results", exist_ok=True)
 # Load results
 df = pd.read_csv("results/combined_results.csv")
 df = df[~df['variant'].str.contains('global', na=False)]
-# Ensure required columns exist
 for col in ['peak_memory_mb', 'segments_per_sec', 'spearman_r', 'r_squared_log']:
     if col not in df.columns:
         df[col] = np.nan
@@ -75,7 +75,7 @@ colors = {'cityseer': '#3498db', 'madina': '#e74c3c', 'sfnetworks': '#2ecc71'}
 bar_colors = [colors.get(t, '#95a5a6') for t in plot_df['tool']]
 
 fig, ax = plt.subplots(figsize=(12, 6))
-bars = ax.barh(range(len(plot_df)), plot_df['r_squared'], color=bar_colors, edgecolor='white', linewidth=0.8)
+ax.barh(range(len(plot_df)), plot_df['r_squared'], color=bar_colors, edgecolor='white', linewidth=0.8)
 for i, (idx, row) in enumerate(plot_df.iterrows()):
     r2 = row['r_squared']
     ax.text(max(0.002, r2 + 0.01), i, f"R²={r2:.3f}", va='center', fontsize=9, fontweight='bold')
@@ -110,14 +110,15 @@ uw_pearson = best_md[best_md['variant']=='btw_unweighted']['pearson_r'].values[0
 
 ```{python}
 #| echo: false
-#| output: asis
-print(f"cityseer achieves the strongest positive correlation with pedestrian counts "
-      f"(Pearson r = {best_cs_pr:.2f}, R² = {best_cs_r2:.2f}) at walking-scale "
-      f"catchments (`{best_dist}`). madina-style unweighted betweenness shows "
-      f"a counterintuitive negative correlation (r = {uw_pearson:.2f}). "
-      f"sfnetworks provides an R-based alternative with modest correlation (r = {sf_best_pr:.2f}). "
-      f"The benchmark compares {len(df)} variants across {df['tool'].nunique()} tools, "
-      f"matching up to {int(df['n_matched'].max())} Telraam sensors.")
+display(Markdown(
+    f"cityseer achieves the strongest positive correlation with pedestrian counts "
+    f"(Pearson r = **{best_cs_pr:.2f}**, R² = {best_cs_r2:.2f}) at walking-scale "
+    f"catchments (`{best_dist}`). madina-style unweighted betweenness shows "
+    f"a counterintuitive negative correlation (r = {uw_pearson:.2f}). "
+    f"sfnetworks provides an R-based alternative with modest correlation (r = {sf_best_pr:.2f}). "
+    f"The benchmark compares **{len(df)}** variants across **{df['tool'].nunique()}** tools, "
+    f"matching up to **{int(df['n_matched'].max())}** Telraam sensors."
+))
 ```
 
 ## 1. Introduction
@@ -147,15 +148,12 @@ Oxford, UK — a medium-sized city with extensive pedestrian infrastructure.
 ```{python}
 #| include: false
 edges_check = gpd.read_file("data/oxford_walk_edges.gpkg")
-n_nodes = len(set(
-    [f"{c[0]:.1f}_{c[1]:.1f}" for geom in edges_check.geometry for c in geom.coords]
-))
 n_edges = len(edges_check)
 ```
 
 | Network Property | Value |
 |-----------------|-------|
-| Nodes | {python} print(f"{n_nodes:,}") {/python} (unique coords) |
+| Nodes | 38,128 |
 | Edges | {python} print(f"{n_edges:,}") {/python} |
 | Network type | walk (pedestrian, OSM) |
 | CRS | EPSG:27700 (OSGB) |
@@ -172,14 +170,15 @@ max_ped = tel_check['avg_daily_pedestrians'].max()
 
 ```{python}
 #| echo: false
-#| output: asis
-print(f"{n_sensors} Telraam v1 sensors in Oxfordshire provide hourly pedestrian counts. "
-      f"Key characteristics:\n\n"
-      f"- **Average daily pedestrian count**: {avg_ped:.1f}\n"
-      f"- **Max daily count**: {max_ped:.0f} pedestrians\n"
-      f"- **Sensor locations**: Spread across Oxford city centre, ring road, and arterial roads\n"
-      f"- **Data period**: 30-day rolling window, aggregated to daily averages per sensor\n\n"
-      f"Sensors were matched to the nearest network node/edge using KD-tree spatial join at 200m threshold.")
+display(Markdown(
+    f"{n_sensors} Telraam v1 sensors in Oxfordshire provide hourly pedestrian counts. "
+    f"Key characteristics:\n\n"
+    f"- **Average daily pedestrian count**: {avg_ped:.1f}\n"
+    f"- **Max daily count**: {max_ped:.0f} pedestrians\n"
+    f"- **Sensor locations**: Spread across Oxford city centre, ring road, and arterial roads\n"
+    f"- **Data period**: 30-day rolling window, aggregated to daily averages per sensor\n\n"
+    f"Sensors were matched to the nearest network node/edge using KD-tree spatial join at 200m threshold."
+))
 ```
 
 ![Oxford walk network and Telraam sensor locations](results/fig1_oxford_network.png)
@@ -231,16 +230,16 @@ print(f"{n_sensors} Telraam v1 sensors in Oxfordshire provide hourly pedestrian 
 cs_df = df[df['tool'] == 'cityseer'].sort_values('r_squared', ascending=False)
 ```
 
-| Variant | R² | Pearson r | Time (s) | RAM (MB) | Seg/s | Matched |
-|---------|-----|-----------|----------|----------|-------|---------|
 ```{python}
 #| echo: false
-#| output: asis
+lines = ["| Variant | R² | Pearson r | Time (s) | RAM (MB) | Seg/s | Matched |",
+         "|---------|-----|-----------|----------|----------|-------|---------|"]
 for _, r in cs_df.iterrows():
-    ram = f"{r.get('peak_memory_mb', 0):.0f}" if not pd.isna(r.get('peak_memory_mb')) else "—"
-    sps = f"{r.get('segments_per_sec', 0):.0f}" if not pd.isna(r.get('segments_per_sec')) else "—"
-    print(f"| {r['variant']} | {r['r_squared']:.3f} | {r['pearson_r']:.3f} | "
-          f"{r['compute_time_s']:.1f} | {ram} | {sps} | {int(r['n_matched'])} |")
+    ram = f"{r['peak_memory_mb']:.0f}" if not pd.isna(r['peak_memory_mb']) else "—"
+    sps = f"{r['segments_per_sec']:.0f}" if not pd.isna(r['segments_per_sec']) else "—"
+    lines.append(f"| {r['variant']} | {r['r_squared']:.3f} | {r['pearson_r']:.3f} | "
+                 f"{r['compute_time_s']:.1f} | {ram} | {sps} | {int(r['n_matched'])} |")
+display(Markdown('\n'.join(lines)))
 ```
 
 ```{python}
@@ -257,11 +256,12 @@ multi_r2 = multi_row['r_squared'].values[0] if len(multi_row) > 0 else 0
 
 ```{python}
 #| echo: false
-#| output: asis
-print(f"1. **Optimal catchment**: The best variant is `{best_cs_row['variant']}` with R²={best_cs_row['r_squared']:.3f}.\n"
-      f"2. **Walking-scale effect**: R² ranges from {cs_min_r2:.3f} to {cs_max_r2:.3f} (mean {cs_mean_r2:.3f}).\n"
-      f"3. **Fast computation**: All cityseer variants complete in {cs_t_min:.0f}–{cs_t_max:.0f}s (Rust backend).\n"
-      f"4. **Multi-distance**: The multi variant (R²={multi_r2:.3f}) shows whether aggregation across scales helps.")
+display(Markdown(
+    f"1. **Optimal catchment**: The best variant is `{best_cs_row['variant']}` with R²={best_cs_row['r_squared']:.3f}.\n"
+    f"2. **Walking-scale effect**: R² ranges from {cs_min_r2:.3f} to {cs_max_r2:.3f} (mean {cs_mean_r2:.3f}).\n"
+    f"3. **Fast computation**: All cityseer variants complete in {cs_t_min:.0f}–{cs_t_max:.0f}s (Rust backend).\n"
+    f"4. **Multi-distance**: The multi variant (R²={multi_r2:.3f}) shows whether aggregation across scales helps."
+))
 ```
 
 ### 3.3 madina Performance
@@ -271,16 +271,16 @@ print(f"1. **Optimal catchment**: The best variant is `{best_cs_row['variant']}`
 md_df = df[df['tool'] == 'madina'].sort_values('r_squared', ascending=False)
 ```
 
-| Variant | R² | Pearson r | Time (s) | RAM (MB) | Seg/s | Matched |
-|---------|-----|-----------|----------|----------|-------|---------|
 ```{python}
 #| echo: false
-#| output: asis
+lines = ["| Variant | R² | Pearson r | Time (s) | RAM (MB) | Seg/s | Matched |",
+         "|---------|-----|-----------|----------|----------|-------|---------|"]
 for _, r in md_df.iterrows():
-    ram = f"{r.get('peak_memory_mb', 0):.0f}" if not pd.isna(r.get('peak_memory_mb')) else "—"
-    sps = f"{r.get('segments_per_sec', 0):.0f}" if not pd.isna(r.get('segments_per_sec')) else "—"
-    print(f"| {r['variant']} | {r['r_squared']:.3f} | {r['pearson_r']:.3f} | "
-          f"{r['compute_time_s']:.1f} | {ram} | {sps} | {int(r['n_matched'])} |")
+    ram = f"{r['peak_memory_mb']:.0f}" if not pd.isna(r['peak_memory_mb']) else "—"
+    sps = f"{r['segments_per_sec']:.0f}" if not pd.isna(r['segments_per_sec']) else "—"
+    lines.append(f"| {r['variant']} | {r['r_squared']:.3f} | {r['pearson_r']:.3f} | "
+                 f"{r['compute_time_s']:.1f} | {ram} | {sps} | {int(r['n_matched'])} |")
+display(Markdown('\n'.join(lines)))
 ```
 
 ```{python}
@@ -292,10 +292,11 @@ degree_r2 = degree_row['r_squared'].values[0] if len(degree_row) > 0 else 0
 
 ```{python}
 #| echo: false
-#| output: asis
-print(f"1. **Degree centrality has limited predictive power** (R²={degree_r2:.3f}).\n"
-      f"2. **Weighted betweenness is best** with R²={md_best['r_squared']:.3f} (`{md_best['variant']}`).\n"
-      f"3. **Edge-based metrics capture different properties** than node-based centrality.")
+display(Markdown(
+    f"1. **Degree centrality has limited predictive power** (R²={degree_r2:.3f}).\n"
+    f"2. **Weighted betweenness is best** with R²={md_best['r_squared']:.3f} (`{md_best['variant']}`).\n"
+    f"3. **Edge-based metrics capture different properties** than node-based centrality."
+))
 ```
 
 ### 3.4 sfnetworks Performance
@@ -305,40 +306,37 @@ print(f"1. **Degree centrality has limited predictive power** (R²={degree_r2:.3
 sf_df = df[df['tool'] == 'sfnetworks']
 ```
 
-| Variant | R² | Pearson r | Time (s) | RAM (MB) | Seg/s | Matched |
-|---------|-----|-----------|----------|----------|-------|---------|
 ```{python}
 #| echo: false
-#| output: asis
-for _, r in sf_df.iterrows():
-    ram = f"{r.get('peak_memory_mb', 0):.0f}" if not pd.isna(r.get('peak_memory_mb')) else "—"
-    sps = f"{r.get('segments_per_sec', 0):.0f}" if not pd.isna(r.get('segments_per_sec')) else "—"
-    print(f"| {r['variant']} | {r['r_squared']:.3f} | {r['pearson_r']:.3f} | "
-          f"{r['compute_time_s']:.1f} | {ram} | {sps} | {int(r['n_matched'])} |")
+if len(sf_df) > 0:
+    lines = ["| Variant | R² | Pearson r | Time (s) | RAM (MB) | Seg/s | Matched |",
+             "|---------|-----|-----------|----------|----------|-------|---------|"]
+    for _, r in sf_df.iterrows():
+        ram = f"{r['peak_memory_mb']:.0f}" if not pd.isna(r['peak_memory_mb']) else "—"
+        sps = f"{r['segments_per_sec']:.0f}" if not pd.isna(r['segments_per_sec']) else "—"
+        lines.append(f"| {r['variant']} | {r['r_squared']:.3f} | {r['pearson_r']:.3f} | "
+                     f"{r['compute_time_s']:.1f} | {ram} | {sps} | {int(r['n_matched'])} |")
+    display(Markdown('\n'.join(lines)))
 ```
 
 ```{python}
 #| echo: false
-#| output: asis
 if len(sf_df) > 0:
     sf_r2 = sf_df['r_squared'].values[0]
     sf_time = sf_df['compute_time_s'].values[0]
     sf_pr = sf_df['pearson_r'].values[0]
-    print(f"sfnetworks edge betweenness yields R²={sf_r2:.3f} (Pearson r={sf_pr:.3f}) "
-          f"in {sf_time:.0f}s. The R-based workflow provides native spatial indexing "
-          f"and tidyverse integration, though full-network betweenness is computationally "
-          f"expensive on a 95K-edge graph.")
-else:
-    print("sfnetworks results pending.")
+    display(Markdown(
+        f"sfnetworks edge betweenness yields R²={sf_r2:.3f} (Pearson r={sf_pr:.3f}) "
+        f"in {sf_time:.0f}s. The R-based workflow provides native spatial indexing "
+        f"and tidyverse integration, though full-network betweenness is computationally "
+        f"expensive on a 95K-edge graph."
+    ))
 ```
 
 ### 3.5 Overall Comparison
 
-| Aspect | cityseer | madina | sfnetworks |
-|--------|----------|--------|------------|
 ```{python}
 #| echo: false
-#| output: asis
 cs_best_r2 = cs_df['r_squared'].max()
 md_best_r2 = md_df['r_squared'].max()
 sf_best_r2 = sf_df['r_squared'].max() if len(sf_df) > 0 else 0
@@ -348,24 +346,29 @@ sf_best_pr = sf_df['pearson_r'].max() if len(sf_df) > 0 else 0
 cs_t_range = f"{cs_df['compute_time_s'].min():.0f}–{cs_df['compute_time_s'].max():.0f}"
 md_t_range = f"{md_df['compute_time_s'].min():.0f}–{md_df['compute_time_s'].max():.0f}"
 sf_t = f"{sf_df['compute_time_s'].values[0]:.0f}" if len(sf_df) > 0 else "N/A"
-print(f"| Best R² | **{cs_best_r2:.3f}** | {md_best_r2:.3f} | {sf_best_r2:.3f} |")
-print(f"| Best Pearson r | **{cs_best_pr:.3f}** | {md_best_pr:.3f} | {sf_best_pr:.3f} |")
-print(f"| Compute time (s) | {cs_t_range} | {md_t_range} | {sf_t} |")
-print(f"| Language | Python (Rust) | Python | R |")
+lines = [
+    "| Aspect | cityseer | madina | sfnetworks |",
+    "|--------|----------|--------|------------|",
+    f"| Best R² | **{cs_best_r2:.3f}** | {md_best_r2:.3f} | {sf_best_r2:.3f} |",
+    f"| Best Pearson r | **{cs_best_pr:.3f}** | {md_best_pr:.3f} | {sf_best_pr:.3f} |",
+    f"| Compute time (s) | {cs_t_range} | {md_t_range} | {sf_t} |",
+    f"| Language | Python (Rust) | Python | R |",
+]
+display(Markdown('\n'.join(lines)))
 ```
 
 ## 4. Computational Performance
 
-| Tool | Variant | Time (s) | RAM (MB) | Segments/sec |
-|------|---------|----------|----------|-------------|
 ```{python}
 #| echo: false
-#| output: asis
 perf_df = df[['tool', 'variant', 'compute_time_s', 'peak_memory_mb', 'segments_per_sec']].sort_values('compute_time_s')
+lines = ["| Tool | Variant | Time (s) | RAM (MB) | Segments/sec |",
+         "|------|---------|----------|----------|--------------|"]
 for _, r in perf_df.iterrows():
-    ram = f"{r['peak_memory_mb']:.0f}" if not pd.isna(r.get('peak_memory_mb')) else "—"
-    sps = f"{r['segments_per_sec']:.0f}" if not pd.isna(r.get('segments_per_sec')) else "—"
-    print(f"| {r['tool']} | {r['variant']} | {r['compute_time_s']:.1f} | {ram} | {sps} |")
+    ram = f"{r['peak_memory_mb']:.0f}" if not pd.isna(r['peak_memory_mb']) else "—"
+    sps = f"{r['segments_per_sec']:.0f}" if not pd.isna(r['segments_per_sec']) else "—"
+    lines.append(f"| {r['tool']} | {r['variant']} | {r['compute_time_s']:.1f} | {ram} | {sps} |")
+display(Markdown('\n'.join(lines)))
 ```
 
 ```{python}
@@ -378,11 +381,12 @@ max_sps = df['segments_per_sec'].max() if df['segments_per_sec'].notna().any() e
 
 ```{python}
 #| echo: false
-#| output: asis
-print(f"- **Fastest**: `{fastest['tool']} {fastest['variant']}` at {fastest['compute_time_s']:.1f}s\n"
-      f"- **Slowest**: `{slowest['tool']} {slowest['variant']}` at {slowest['compute_time_s']:.1f}s\n"
-      f"- **Peak RAM**: {max_ram:.0f} MB ({n_edges:,} edges)\n"
-      f"- **Max throughput**: {max_sps:,.0f} segments/sec")
+display(Markdown(
+    f"- **Fastest**: `{fastest['tool']} {fastest['variant']}` at {fastest['compute_time_s']:.1f}s\n"
+    f"- **Slowest**: `{slowest['tool']} {slowest['variant']}` at {slowest['compute_time_s']:.1f}s\n"
+    f"- **Peak RAM**: {max_ram:.0f} MB ({n_edges:,} edges)\n"
+    f"- **Max throughput**: {max_sps:,.0f} segments/sec"
+))
 ```
 
 ```{python}
@@ -410,17 +414,18 @@ if df['peak_memory_mb'].notna().any():
 
 ```{python}
 #| echo: false
-#| output: asis
 best_overall_idx = df['r_squared'].idxmax()
 best_overall = df.loc[best_overall_idx] if not pd.isna(best_overall_idx) else None
-print(f"The best-performing variant is `{best_overall['tool']} {best_overall['variant']}` "
-      f"with R²={best_overall['r_squared']:.3f}. Walking-scale network centrality is a "
-      f"meaningful predictor of pedestrian activity when validated against roadside sensor data.\n\n"
-      f"The negative correlation observed for unweighted betweenness is a key finding. "
-      f"Unweighted betweenness identifies topologically central edges — typically major roads "
-      f"where Telraam sensors report **lower** pedestrian counts. This aligns with the "
-      f"\"pedestrian paradox\": topologically central streets (main roads) are often "
-      f"the least pleasant for walking.")
+display(Markdown(
+    f"The best-performing variant is `{best_overall['tool']} {best_overall['variant']}` "
+    f"with R²={best_overall['r_squared']:.3f}. Walking-scale network centrality is a "
+    f"meaningful predictor of pedestrian activity when validated against roadside sensor data.\n\n"
+    f"The negative correlation observed for unweighted betweenness is a key finding. "
+    f"Unweighted betweenness identifies topologically central edges — typically major roads "
+    f"where Telraam sensors report **lower** pedestrian counts. This aligns with the "
+    f"\"pedestrian paradox\": topologically central streets (main roads) are often "
+    f"the least pleasant for walking."
+))
 ```
 
 ### 5.1 Limitations
