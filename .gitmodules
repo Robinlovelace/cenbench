@@ -1,3 +1,6 @@
 [submodule "madina"]
 	path = madina
 	url = https://github.com/City-Form-Lab/madina
+[submodule "cityseer-api"]
+	path = cityseer-api
+	url = https://github.com/benchmark-urbanism/cityseer-api.git
