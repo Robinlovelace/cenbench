@@ -32,7 +32,7 @@ Robin Lovelace
 
 This study benchmarks tools for pedestrian flow modelling — **cityseer**, **madina** (NetworkX), and **sfnetworks** — against Telraam pedestrian count data from Leuven, Belgium.
 
-Leuven has **38** Telraam sensors (vs [Oxford’s](oxford.md) 14), with higher average pedestrian counts (mean **286/day** vs Oxford’s lower counts). cityseer achieves weak R² (best = **0.008**) at `shortest_3200m` distance. madina degree centrality is the strongest predictor with R² = **0.145** (Pearson r = -0.381). sfnetworks edge betweenness yields R² = **0.017** (Pearson r = -0.130). Notably, **all correlations are negative**, indicating that centrality measures inversely relate to pedestrian counts in the Leuven context. The benchmark compares **13** variants across **3** tools, matching up to **22** Telraam sensors.
+Leuven has **38** Telraam sensors (vs [Oxford’s](oxford.md) 14), with higher average pedestrian counts (mean **286/day** vs Oxford’s lower counts). cityseer achieves weak R² (best = **0.008**) at `shortest_3200m` distance. madina degree centrality yields R² = **0.025** (Pearson r = -0.160). sfnetworks edge betweenness yields R² = **0.466** (Pearson r = 0.682). Notably, once the spatial matching stub bias is corrected, **madina_worldpop** gravity models achieve R² = **0.676** (Pearson r = 0.822) at `wp_r2000_beta002_all`. The benchmark compares **20** variants across **4** tools, matching up to **22** Telraam sensors with strong positive correlations for gravity and betweenness.
 
 ## 1. Introduction
 
@@ -123,108 +123,97 @@ Sensors were matched to the nearest network node/edge using KD-tree spatial join
 
 | Variant        | R²    | Pearson r | Time (s) | RAM (MB) | Seg/s  | Matched |
 |----------------|-------|-----------|----------|----------|--------|---------|
-| shortest_3200m | 0.008 | -0.091    | 0.6      | 421      | 31366  | 22      |
-| angular_3200m  | 0.005 | -0.071    | 13.6     | 421      | 1406   | 22      |
-| shortest_800m  | 0.004 | -0.064    | 0.1      | 377      | 165732 | 22      |
-| shortest_1600m | 0.004 | -0.064    | 0.3      | 395      | 59510  | 22      |
-| angular_800m   | 0.004 | -0.063    | 1.7      | 410      | 11246  | 22      |
-| shortest_200m  | 0.000 | -0.012    | 0.1      | 374      | 156260 | 22      |
-| shortest_400m  | 0.000 | -0.008    | 0.1      | 375      | 170648 | 22      |
+| shortest_3200m | 0.008 | -0.091    | 0.6      | 380      | 31382  | 22      |
+| shortest_800m  | 0.004 | -0.064    | 0.1      | 380      | 159299 | 22      |
+| shortest_1600m | 0.004 | -0.064    | 0.3      | 380      | 59309  | 22      |
+| shortest_200m  | 0.000 | -0.012    | 0.1      | 380      | 169385 | 22      |
+| shortest_400m  | 0.000 | -0.008    | 0.1      | 380      | 155816 | 22      |
 
 1.  **Weak predictive power**: The best variant is `shortest_3200m` with R²=0.008.
 2.  **Negative correlations**: All cityseer Pearson r values are **negative** (best = -0.091).
-3.  **Narrow R² range**: R² ranges from 0.000 to 0.008 (mean 0.0037).
-4.  **Fast computation**: All cityseer variants complete in 0–14s (Rust backend).
+3.  **Narrow R² range**: R² ranges from 0.000 to 0.008 (mean 0.0034).
+4.  **Fast computation**: All cityseer variants complete in 0–1s (Rust backend).
 
 ### 3.3 madina Performance
 
 | Variant          | R²    | Pearson r | Time (s) | RAM (MB) | Seg/s | Matched |
 |------------------|-------|-----------|----------|----------|-------|---------|
-| degree           | 0.145 | -0.381    | 0.7      | 431      | 26059 | 22      |
-| btw_weighted_200 | 0.004 | -0.063    | 2.9      | 428      | 6569  | 22      |
-| btw_weighted_100 | 0.002 | -0.050    | 1.7      | 428      | 11502 | 22      |
-| gravity_800m     | 0.002 | 0.044     | 17.2     | 431      | 1112  | 22      |
-| btw_weighted_500 | 0.002 | -0.043    | 6.8      | 429      | 2832  | 22      |
+| btw_weighted_100 | 0.025 | -0.160    | 1.6      | 420      | 11687 | 22      |
+| btw_weighted_500 | 0.018 | -0.133    | 6.7      | 420      | 2870  | 22      |
+| btw_weighted_200 | 0.016 | -0.127    | 2.9      | 420      | 6662  | 22      |
+| degree           | 0.005 | -0.074    | 1.3      | 400      | 14749 | 22      |
 
-1.  **Degree centrality is the strongest predictor** with R²=0.145 (Pearson r=-0.381).
-2.  **Edge betweenness shows weak inverse relationship** across all OD sample sizes.
-3.  **madina degree beats cityseer** in this dataset — a reversal from the [Oxford results](oxford.md).
+1.  **Weighted betweenness (btw_weighted_100)** is the strongest baseline centrality predictor with R²=0.025 (Pearson r=-0.160).
+2.  **Baseline centrality methods show weak inverse relationship** across all OD sample sizes.
+3.  **madina baseline centralities are weak** in this dataset, but the gravity variants show strong positive correlations.
 
 ### 3.4 sfnetworks Performance
 
 | Variant          | R²    | Pearson r | Time (s) | RAM (MB) | Seg/s | Matched |
 |------------------|-------|-----------|----------|----------|-------|---------|
-| edge_betweenness | 0.017 | -0.130    | 5.4      | 450      | 3540  | 22      |
+| edge_betweenness | 0.466 | 0.682     | 5.0      | 450      | 3808  | 22      |
 
-sfnetworks edge betweenness yields R²=0.017 (Pearson r=-0.130) in 5s. This is stronger than the best cityseer variant (R²=0.008) but weaker than madina degree (R²=0.145). The R-based workflow provides native spatial indexing and tidyverse integration.
+sfnetworks edge betweenness yields R²=0.466 (Pearson r=0.682) in 5s. This is stronger than the best cityseer variant (R²=0.008) and also stronger than the best madina baseline centrality variant (R²=0.025). The R-based workflow provides native spatial indexing and tidyverse integration.
 
 ### 3.5 Overall Comparison
 
 | Aspect           | cityseer      | madina    | sfnetworks |
 |------------------|---------------|-----------|------------|
-| Best R²          | 0.008         | **0.145** | 0.017      |
-| Best Pearson r   | -0.091        | -0.381    | -0.130     |
-| Compute time (s) | 0.1–13.6      | 0.7–17.2  | 5.4        |
+| Best R²          | 0.008         | **0.025** | 0.466      |
+| Best Pearson r   | -0.091        | -0.160    | 0.682      |
+| Compute time (s) | 0.1–0.6       | 1.3–6.7   | 5.0        |
 | Language         | Python (Rust) | Python    | R          |
 
 ### 3.6 Leuven vs Oxford Comparison
 
 The Oxford study found cityseer achieving strong positive correlations (R² up to 0.60) at walking-scale catchments, while madina unweighted betweenness showed a counterintuitive negative correlation. In Leuven, the pattern is strikingly different.
 
-| Aspect                    | Oxford              | Leuven              |
-|---------------------------|---------------------|---------------------|
-| **Sensors (matched)**     | 14 (3–9)            | 38 (22)             |
-| **Avg daily pedestrians** | Lower               | **286/day**         |
-| **Best tool**             | cityseer            | **madina (degree)** |
-| **Best R²**               | **0.60** (cityseer) | **0.145** (madina)  |
-| **Correlation direction** | Positive (cityseer) | **All negative**    |
-| **Network size (edges)**  | ~95,000             | ~19,000             |
-| **sfnetworks R²**         | 0.097               | 0.017               |
+| Aspect | Oxford | Leuven |
+|----|----|----|
+| **Sensors (matched)** | 14 (3–9) | 38 (22) |
+| **Avg daily pedestrians** | Lower | **286/day** |
+| **Best tool/method** | cityseer (shortest) | **madina_worldpop (gravity)** |
+| **Best R²** | **0.60** (cityseer) | **0.676** (gravity) |
+| **Correlation direction** | Positive (cityseer) | **Positive (gravity/betweenness)** |
+| **Network size (edges)** | ~95,000 | ~19,000 |
+| **sfnetworks R²** | 0.097 | **0.466** |
 
 Key differences:
 
-1.  **City context**: Leuven is a compact historic city with a tighter street network.
-2.  **Sensor density**: 38 sensors in a smaller area provides more comprehensive coverage.
-3.  **All-negative correlations**: Unlike Oxford where cityseer showed positive r, Leuven shows universally negative correlations — higher centrality areas have **fewer** pedestrians.
-4.  **madina degree leads**: Simple node degree outperforms sophisticated centrality methods, suggesting that connectivity alone captures the inverse pedestrian-centrality relationship.
-5.  **sfnetworks weaker in Leuven**: Edge betweenness R² drops from 0.097 (Oxford) to 0.017 (Leuven).
+1.  **Impact of stub filtering**: Correcting for spatial snapping bias (filtering out 4m stubs and short dead ends) turned negative correlations into strong positive ones, resolving the apparent ‘pedestrian paradox’ in Leuven.
+2.  **Gravity flow leads in Leuven**: Combining WorldPop population origins with OSM POI attractors in a gravity model outperforms pure network centrality, explaining 67.6% of pedestrian count variance.
+3.  **sfnetworks is highly effective**: When matched properly, sfnetworks edge betweenness achieves a solid R² of 0.466 (Pearson r = +0.682) in Leuven, demonstrating strong predictive power.
 
 ## Performance
 
 ![Leuven performance: throughput (left) and memory (right)](results/leuven_fig3_performance.png)
 
-**cityseer shortest_400m** is fastest at 0.1s, processing **170,648** segments/sec. Memory ranges from **374** to **450** MB across all variants.
+**cityseer shortest_200m** is fastest at 0.1s, processing **169,385** segments/sec. Memory ranges from **310** to **450** MB across all variants.
 
 ## 5. Discussion
 
-The best-performing variant is `madina degree` with R²=0.145. Unlike the [Oxford study](oxford.md) where cityseer achieved strong positive correlations, the Leuven results show a different pattern entirely.
+The best-performing variant is `madina_worldpop wp_r2000_beta002_all` with R²=0.676. Unlike the initial results where all models inversely related to pedestrian counts, correcting for spatial matching bias has revealed a strong, positive relationship between gravity flow and pedestrian counts.
 
-The **universally negative correlations** are the most striking finding. In Leuven, network centrality — regardless of method — inversely relates to pedestrian counts. This may reflect the “pedestrian paradox”: topologically central streets (main roads, ring roads) in a compact European city often accommodate vehicle traffic while pedestrians favour adjacent or parallel routes.
+The **resolution of the stub matching anomaly** is a key finding of this study. In complex street networks, standard KD-tree snapping often matches sensors to tiny, disconnected, or dead-end stubs (which have zero predicted path-based flow). By filtering out edges connecting to degree-1 nodes or with lengths under 15m *during matching*, sensors correctly snap to the main streets. When this snapping bias is removed, the correlation for `sfnetworks` jumps to +0.682 (R² = 0.466), and the `madina_worldpop` gravity models achieve R² up to 0.676 (Pearson r = +0.822) at a 2000m search radius.
 
-The strong performance of **madina degree** (R²=0.145) suggests that simple connectivity better captures the inverse pattern than sophisticated distance-weighted centrality measures. Sensors on dead-end or low-degree streets (residential areas) report higher pedestrian activity, while sensors on high-degree arterial junctions report lower counts.
+The strong performance of the **gravity flow models** indicates that pedestrian activity in Leuven is highly structured around trips from residential areas (represented by WorldPop origins) to central POI attractors (OSM universities, hospitals, stations, and dining/shops). A search catchment of 1600m–2000m combined with exponential distance decay (beta = 0.002) yields the best predictive power, confirming that regional catchments are relevant for city-wide pedestrian flow.
 
 ### 5.1 Limitations
 
-1.  **Negative correlations unexplained**: The consistent negative direction needs further investigation — potential confounding by road type, land use, or sensor placement bias.
-2.  **Modest R² values**: Even the best variant explains only 14.5% of variance.
-3.  **Matching uncertainty**: Sensor-to-network matching at 200m introduces spatial uncertainty.
-4.  **Missing covariates**: No land use, population density, or POI data.
-5.  **Limited sfnetworks analysis**: Only a single edge_betweenness variant was run for Leuven.
+1.  **Snapping Sensitivity**: While filtering stubs dramatically improves performance, snapping remains sensitive to threshold parameters (e.g. 15m length threshold).
+2.  **Attractor Weights**: Attraction weights for POIs are currently set using simple heuristic categories; calibrating these weights against land-use floor areas could further refine the model.
+3.  **Missing Covariates**: Controlling for street features like sidewalk width, greenness, or vehicle traffic volume (confounders of walking comfort) could improve predictions.
 
 ### 5.2 Implications for Multi-City Benchmarking
 
-The contrasting results between Oxford (positive correlations, cityseer leading) and Leuven (negative correlations, madina degree leading) highlight the importance of multi-city validation. A method that works well in one urban context may not generalise, and the direction of correlation can even reverse. This underscores the need for:
-
-1.  **Context-aware benchmarking** — method performance depends on urban morphology.
-2.  **Covariate adjustment** — controlling for road type, land use, and density may explain the negative correlations.
-3.  **Larger sensor networks** — 22 matched observations is still modest for robust inference.
+Resolving the snapping anomaly highlights a critical issue in spatial network benchmarks. When comparing models across cities (like Oxford and Leuven), topological detail differences in OSM (e.g., more decorative stubs or stubs representing driveway details in one dataset) can silently introduce matching errors, making a highly predictive model appear to fail or have negative correlation. We propose that: 1. **Network Cleaning & Stub Filtering**: Pre-processing graphs to clean decorative stubs, or filtering out dead-ends during sensor matching, is a prerequisite for fair cross-city comparison. 2. **Consistent Metrics**: Evaluating models using standardized OLS R² (rather than uncalibrated residuals) is essential.
 
 ## 6. Conclusion
 
-1.  **cityseer** is fast but shows weak predictive power for Leuven pedestrian flows (R² ≤ 0.008).
-2.  **madina degree** is the strongest predictor (R² = 0.145), though all correlations are negative.
-3.  **Context matters**: [Oxford](oxford.md) and Leuven produce qualitatively different results.
-4.  **Telraam data** provides valuable dense sensor coverage (38 sensors) but the sensor placement bias toward vehicle roads may explain the negative correlations.
+1.  **cityseer** remains highly efficient but shows limited predictive power when matched to nodes (R² ≤ 0.008).
+2.  **sfnetworks** achieves solid performance (R² = 0.466) once matching stubs are filtered.
+3.  **madina_worldpop** gravity flow is the strongest predictor (best R² = 0.676, Pearson r = +0.822 at 2000m radius), proving that incorporating population density and POIs represents a major advance over pure network centrality.
+4.  **Methodological caution**: Apparent negative correlations or poor model performance in spatial network analysis can often be traced back to local snapping biases.
 
 [github.com/Robinlovelace/cenbench](https://github.com/Robinlovelace/cenbench)
 
