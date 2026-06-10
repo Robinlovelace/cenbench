@@ -83,7 +83,7 @@ plt.close()
 # ── FIGURE 2: BARPLOT ──
 plot_df = df[df['r_squared'].notna() & (df['r_squared'] > -1)].copy()
 plot_df = plot_df.sort_values('r_squared', ascending=True)
-colors = {'cityseer': '#3498db', 'madina': '#e74c3c', 'sfnetworks': '#2ecc71', 'madina_worldpop': '#9b59b6'}
+colors = {'cityseer': '#3498db', 'cityseer_demand': '#e67e22', 'madina': '#e74c3c', 'sfnetworks': '#2ecc71', 'madina_worldpop': '#9b59b6'}
 bar_colors = [colors.get(t, '#95a5a6') for t in plot_df['tool']]
 
 fig, ax = plt.subplots(figsize=(12, 9))
@@ -352,31 +352,67 @@ if len(sf_df) > 0:
     ))
 ```
 
-### 3.5 Overall Comparison
+### 3.5 cityseer_demand Performance
+
+```{python}
+#| include: false
+csd_df = df[df['tool'] == 'cityseer_demand'].sort_values('r_squared', ascending=False)
+```
+
+```{python}
+#| echo: false
+if len(csd_df) > 0:
+    lines = ["| Variant | R² | Pearson r | Time (s) | RAM (MB) | Seg/s | Matched |",
+             "|---------|-----|-----------|----------|----------|-------|---------|"]
+    for _, r in csd_df.iterrows():
+        ram = f"{r['peak_memory_mb']:.0f}" if not pd.isna(r['peak_memory_mb']) else "—"
+        sps = f"{r['segments_per_sec']:.0f}" if not pd.isna(r['segments_per_sec']) else "—"
+        lines.append(f"| {r['variant']} | {r['r_squared']:.3f} | {r['pearson_r']:.3f} | "
+                     f"{r['compute_time_s']:.3f} | {ram} | {sps} | {int(r['n_matched'])} |")
+    display(Markdown('\n'.join(lines)))
+```
+
+```{python}
+#| echo: false
+if len(csd_df) > 0:
+    csd_best = csd_df.iloc[0]
+    display(Markdown(
+        f"The Rust-accelerated `cityseer_demand` gravity model achieves R² = **{csd_best['r_squared']:.3f}** "
+        f"(Pearson r = {csd_best['pearson_r']:.3f}) with the `{csd_best['variant']}` variant. "
+        f"Crucially, it completes the gravity allocation, parallel Dijkstra, and Brandes backpropagation "
+        f"in just **{csd_best['compute_time_s']:.3f}s**, making it by far the fastest gravity routing method."
+    ))
+```
+
+### 3.6 Overall Comparison
 
 ```{python}
 #| echo: false
 cs_best_r2 = cs_df['r_squared'].max()
+csd_best_r2 = csd_df['r_squared'].max() if len(csd_df) > 0 else 0
 md_best_r2 = md_df['r_squared'].max()
 sf_best_r2 = sf_df['r_squared'].max() if len(sf_df) > 0 else 0
 cs_best_pr = cs_df.loc[cs_df['r_squared'].idxmax(), 'pearson_r']
+csd_best_pr = csd_df.loc[csd_df['r_squared'].idxmax(), 'pearson_r'] if len(csd_df) > 0 else 0
 md_best_pr = md_df.loc[md_df['r_squared'].idxmax(), 'pearson_r']
 sf_best_pr = sf_df['pearson_r'].max() if len(sf_df) > 0 else 0
 cs_t_range = f"{cs_df['compute_time_s'].min():.1f}–{cs_df['compute_time_s'].max():.1f}"
+csd_t_range = f"{csd_df['compute_time_s'].min():.2f}–{csd_df['compute_time_s'].max():.2f}" if len(csd_df) > 0 else "N/A"
 md_t_range = f"{md_df['compute_time_s'].min():.1f}–{md_df['compute_time_s'].max():.1f}"
 sf_t = f"{sf_df['compute_time_s'].values[0]:.1f}" if len(sf_df) > 0 else "N/A"
 lines = [
-    "| Aspect | cityseer | madina | sfnetworks |",
-    "|--------|----------|--------|------------|",
-    f"| Best R² | {cs_best_r2:.3f} | **{md_best_r2:.3f}** | {sf_best_r2:.3f} |",
-    f"| Best Pearson r | {cs_best_pr:.3f} | {md_best_pr:.3f} | {sf_best_pr:.3f} |",
-    f"| Compute time (s) | {cs_t_range} | {md_t_range} | {sf_t} |",
-    f"| Language | Python (Rust) | Python | R |",
+    "| Aspect | cityseer | cityseer_demand | madina | sfnetworks |",
+    "|--------|----------|-----------------|--------|------------|",
+    f"| Best R² | {cs_best_r2:.3f} | {csd_best_r2:.3f} | **{md_best_r2:.3f}** | {sf_best_r2:.3f} |",
+    f"| Best Pearson r | {cs_best_pr:.3f} | {csd_best_pr:.3f} | {md_best_pr:.3f} | {sf_best_pr:.3f} |",
+    f"| Compute time (s) | {cs_t_range} | {csd_t_range} | {md_t_range} | {sf_t} |",
+    f"| Language | Python (Rust) | Python (Rust) | Python | R |",
 ]
 display(Markdown('\n'.join(lines)))
 ```
+```
 
-### 3.6 Leuven vs Oxford Comparison
+### 3.7 Leuven vs Oxford Comparison
 
 The Oxford study found cityseer achieving strong positive correlations (R² up to 0.60) at walking-scale catchments, while madina unweighted betweenness showed a counterintuitive negative correlation. In Leuven, the pattern is strikingly different.
 
@@ -395,15 +431,16 @@ display(Markdown(
     "Key differences:\n\n"
     "1. **Impact of stub filtering**: Correcting for spatial snapping bias (filtering out 4m stubs and short dead ends) turned negative correlations into strong positive ones, resolving the apparent 'pedestrian paradox' in Leuven.\n"
     "2. **Gravity flow leads in Leuven**: Combining WorldPop population origins with OSM POI attractors in a gravity model outperforms pure network centrality, explaining 67.6% of pedestrian count variance.\n"
-    "3. **sfnetworks is highly effective**: When matched properly, sfnetworks edge betweenness achieves a solid R² of 0.466 (Pearson r = +0.682) in Leuven, demonstrating strong predictive power."
+    "3. **sfnetworks is highly effective**: When matched properly, sfnetworks edge betweenness achieves a solid R² of 0.466 (Pearson r = +0.682) in Leuven, demonstrating strong predictive power.\n"
+    "4. **Rust acceleration via cityseer_demand**: Our new implementation of gravity demand routing directly in cityseer's Rust backend achieves R² = 0.431 in just 0.086 seconds, which is a **~270x speedup** over the pure Python NetworkX gravity model."
 ))
 ```
 
-### 3.7 Spatial Flow Distribution
+### 3.8 Spatial Flow Distribution
 
 ![Figure 4: Spatial Distribution of Estimated Pedestrian Flow (Best Gravity Model)](results/leuven_fig4_flow.png)
 
-**Figure 4** presents the spatial distribution of estimated pedestrian flows across the Leuven walk network. Segment thickness and color intensity (magma colormap) are proportional to the estimated flow. Telraam pedestrian sensors are overlaid in red, with circles sized by average daily pedestrian counts and annotated for high-volume sensors. A highly interactive version of this map is available at [leuven-map.html](leuven-map.html) (or on the GitHub Release page).
+**Figure 4** presents the spatial distribution of estimated pedestrian flows across the Leuven walk network. Segment thickness and color intensity (magma colormap) are proportional to the estimated flow. Telraam pedestrian sensors are overlaid in red, with circles sized by average daily pedestrian counts and annotated for high-volume sensors. A highly interactive version of this map is available at [leuven-map.html](leuven-map.html), and a version computed using the high-performance `cityseer_demand` model is available at [leuven-map-cityseer-demand.html](leuven-map-cityseer-demand.html) (both uploaded to the GitHub Release).
 
 ## Performance
 
@@ -415,7 +452,7 @@ fastest = perf_df.iloc[0] if len(perf_df) > 0 else None
 max_sps = perf_df['segments_per_sec'].max() if 'segments_per_sec' in perf_df.columns and perf_df['segments_per_sec'].notna().any() else 0
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
-colors_bar = {'cityseer': '#3498db', 'madina': '#e74c3c', 'sfnetworks': '#2ecc71', 'madina_worldpop': '#9b59b6'}
+colors_bar = {'cityseer': '#3498db', 'cityseer_demand': '#e67e22', 'madina': '#e74c3c', 'sfnetworks': '#2ecc71', 'madina_worldpop': '#9b59b6'}
 
 speed_df = perf_df.sort_values('segments_per_sec', ascending=True)
 s_colors = [colors_bar.get(t, '#95a5a6') for t in speed_df['tool']]
@@ -530,7 +567,8 @@ We propose that:
 - `results/leuven_fig2_barplot.png` — R² comparison plot
 - `results/leuven_fig3_performance.png` — Speed and memory comparison
 - `results/leuven_fig4_flow.png` — Spatial distribution of predicted flow
-- `leuven-map.html` — Interactive Leaflet flow map
+- `leuven-map.html` — Interactive Leaflet flow map (Madina)
+- `leuven-map-cityseer-demand.html` — Interactive Leaflet flow map (Cityseer Demand)
 
 ### Software Versions
 

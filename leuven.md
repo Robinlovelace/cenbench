@@ -15,9 +15,10 @@ Robin Lovelace
   - [3.2 cityseer Performance](#32-cityseer-performance)
   - [3.3 madina Performance](#33-madina-performance)
   - [3.4 sfnetworks Performance](#34-sfnetworks-performance)
-  - [3.5 Overall Comparison](#35-overall-comparison)
-  - [3.6 Leuven vs Oxford Comparison](#36-leuven-vs-oxford-comparison)
-  - [3.7 Spatial Flow Distribution](#37-spatial-flow-distribution)
+  - [3.5 cityseer_demand Performance](#35-cityseer_demand-performance)
+  - [3.6 Overall Comparison](#36-overall-comparison)
+  - [3.7 Leuven vs Oxford Comparison](#37-leuven-vs-oxford-comparison)
+  - [3.8 Spatial Flow Distribution](#38-spatial-flow-distribution)
 - [Performance](#performance)
 - [5. Discussion](#5-discussion)
   - [5.1 Limitations](#51-limitations)
@@ -33,7 +34,7 @@ Robin Lovelace
 
 This study benchmarks tools for pedestrian flow modelling — **cityseer**, **madina** (NetworkX), and **sfnetworks** — against Telraam pedestrian count data from Leuven, Belgium.
 
-Leuven has **38** Telraam sensors (vs [Oxford’s](oxford.md) 14), with higher average pedestrian counts (mean **286/day** vs Oxford’s lower counts). cityseer achieves weak R² (best = **0.008**) at `shortest_3200m` distance. madina degree centrality yields R² = **0.025** (Pearson r = -0.160). sfnetworks edge betweenness yields R² = **0.466** (Pearson r = 0.682). Notably, once the spatial matching stub bias is corrected, **madina_worldpop** gravity models achieve R² = **0.676** (Pearson r = 0.822) at `wp_r2000_beta002_all`. The benchmark compares **20** variants across **4** tools, matching up to **22** Telraam sensors with strong positive correlations for gravity and betweenness.
+Leuven has **38** Telraam sensors (vs [Oxford’s](oxford.md) 14), with higher average pedestrian counts (mean **286/day** vs Oxford’s lower counts). cityseer achieves weak R² (best = **0.008**) at `shortest_3200m` distance. madina degree centrality yields R² = **0.025** (Pearson r = -0.160). sfnetworks edge betweenness yields R² = **0.466** (Pearson r = 0.682). Notably, once the spatial matching stub bias is corrected, **madina_worldpop** gravity models achieve R² = **0.676** (Pearson r = 0.822) at `wp_r2000_beta002_all`. The benchmark compares **30** variants across **5** tools, matching up to **22** Telraam sensors with strong positive correlations for gravity and betweenness.
 
 ## 1. Introduction
 
@@ -156,16 +157,35 @@ Sensors were matched to the nearest network node/edge using KD-tree spatial join
 
 sfnetworks edge betweenness yields R²=0.466 (Pearson r=0.682) in 5s. This is stronger than the best cityseer variant (R²=0.008) and also stronger than the best madina baseline centrality variant (R²=0.025). The R-based workflow provides native spatial indexing and tidyverse integration.
 
-### 3.5 Overall Comparison
+### 3.5 cityseer_demand Performance
 
-| Aspect           | cityseer      | madina    | sfnetworks |
-|------------------|---------------|-----------|------------|
-| Best R²          | 0.008         | **0.025** | 0.466      |
-| Best Pearson r   | -0.091        | -0.160    | 0.682      |
-| Compute time (s) | 0.1–0.6       | 1.3–6.7   | 5.0        |
-| Language         | Python (Rust) | Python    | R          |
+| Variant | R² | Pearson r | Time (s) | RAM (MB) | Seg/s | Matched |
+|----|----|----|----|----|----|----|
+| cs_demand_r2000_beta001_all | 0.431 | 0.656 | 0.086 | 420 | 221351 | 22 |
+| cs_demand_r1200_beta001_all | 0.402 | 0.634 | 0.067 | 420 | 286464 | 22 |
+| cs_demand_r2000_beta002_all | 0.387 | 0.622 | 0.088 | 420 | 216504 | 22 |
+| cs_demand_r800_beta002_all | 0.383 | 0.619 | 0.057 | 420 | 336217 | 22 |
+| cs_demand_r1200_beta002_all | 0.380 | 0.616 | 0.066 | 420 | 289395 | 22 |
+| cs_demand_r1600_beta002_all | 0.351 | 0.592 | 0.076 | 420 | 250228 | 22 |
+| cs_demand_r1200_beta004_all | 0.321 | 0.566 | 0.066 | 420 | 289598 | 22 |
+| cs_demand_r2000_beta004_all | 0.303 | 0.551 | 0.087 | 420 | 219146 | 22 |
+| cs_demand_r1200_beta002_closest | 0.050 | -0.224 | 0.066 | 420 | 288080 | 22 |
+| cs_demand_r2000_beta002_closest | 0.050 | -0.224 | 0.088 | 420 | 218463 | 22 |
 
-### 3.6 Leuven vs Oxford Comparison
+The Rust-accelerated `cityseer_demand` gravity model achieves R² = **0.431** (Pearson r = 0.656) with the `cs_demand_r2000_beta001_all` variant. Crucially, it completes the gravity allocation, parallel Dijkstra, and Brandes backpropagation in just **0.086s**, making it by far the fastest gravity routing method.
+
+### 3.6 Overall Comparison
+
+| Aspect           | cityseer      | cityseer_demand | madina    | sfnetworks |
+|------------------|---------------|-----------------|-----------|------------|
+| Best R²          | 0.008         | 0.431           | **0.025** | 0.466      |
+| Best Pearson r   | -0.091        | 0.656           | -0.160    | 0.682      |
+| Compute time (s) | 0.1–0.6       | 0.06–0.09       | 1.3–6.7   | 5.0        |
+| Language         | Python (Rust) | Python (Rust)   | Python    | R          |
+
+\`\`\`
+
+### 3.7 Leuven vs Oxford Comparison
 
 The Oxford study found cityseer achieving strong positive correlations (R² up to 0.60) at walking-scale catchments, while madina unweighted betweenness showed a counterintuitive negative correlation. In Leuven, the pattern is strikingly different.
 
@@ -184,18 +204,19 @@ Key differences:
 1.  **Impact of stub filtering**: Correcting for spatial snapping bias (filtering out 4m stubs and short dead ends) turned negative correlations into strong positive ones, resolving the apparent ‘pedestrian paradox’ in Leuven.
 2.  **Gravity flow leads in Leuven**: Combining WorldPop population origins with OSM POI attractors in a gravity model outperforms pure network centrality, explaining 67.6% of pedestrian count variance.
 3.  **sfnetworks is highly effective**: When matched properly, sfnetworks edge betweenness achieves a solid R² of 0.466 (Pearson r = +0.682) in Leuven, demonstrating strong predictive power.
+4.  **Rust acceleration via cityseer_demand**: Our new implementation of gravity demand routing directly in cityseer’s Rust backend achieves R² = 0.431 in just 0.086 seconds, which is a **~270x speedup** over the pure Python NetworkX gravity model.
 
-### 3.7 Spatial Flow Distribution
+### 3.8 Spatial Flow Distribution
 
 ![Figure 4: Spatial Distribution of Estimated Pedestrian Flow (Best Gravity Model)](results/leuven_fig4_flow.png)
 
-**Figure 4** presents the spatial distribution of estimated pedestrian flows across the Leuven walk network. Segment thickness and color intensity (magma colormap) are proportional to the estimated flow. Telraam pedestrian sensors are overlaid in red, with circles sized by average daily pedestrian counts and annotated for high-volume sensors. A highly interactive version of this map is available at [leuven-map.html](leuven-map.html) (or on the GitHub Release page).
+**Figure 4** presents the spatial distribution of estimated pedestrian flows across the Leuven walk network. Segment thickness and color intensity (magma colormap) are proportional to the estimated flow. Telraam pedestrian sensors are overlaid in red, with circles sized by average daily pedestrian counts and annotated for high-volume sensors. A highly interactive version of this map is available at [leuven-map.html](leuven-map.html), and a version computed using the high-performance `cityseer_demand` model is available at [leuven-map-cityseer-demand.html](leuven-map-cityseer-demand.html) (both uploaded to the GitHub Release).
 
 ## Performance
 
 ![Leuven performance: throughput (left) and memory (right)](results/leuven_fig3_performance.png)
 
-**cityseer shortest_200m** is fastest at 0.1s, processing **169,385** segments/sec. Memory ranges from **310** to **450** MB across all variants.
+**cityseer_demand cs_demand_r800_beta002_all** is fastest at 0.1s, processing **336,217** segments/sec. Memory ranges from **310** to **450** MB across all variants.
 
 ## 5. Discussion
 
@@ -253,7 +274,8 @@ Resolving the snapping anomaly highlights a critical issue in spatial network be
 - `results/leuven_fig2_barplot.png` — R² comparison plot
 - `results/leuven_fig3_performance.png` — Speed and memory comparison
 - `results/leuven_fig4_flow.png` — Spatial distribution of predicted flow
-- `leuven-map.html` — Interactive Leaflet flow map
+- `leuven-map.html` — Interactive Leaflet flow map (Madina)
+- `leuven-map-cityseer-demand.html` — Interactive Leaflet flow map (Cityseer Demand)
 
 ### Software Versions
 
