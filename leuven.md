@@ -161,26 +161,26 @@ sfnetworks edge betweenness yields R²=0.466 (Pearson r=0.682) in 5s. This is st
 
 | Variant | R² | Pearson r | Time (s) | RAM (MB) | Seg/s | Matched |
 |----|----|----|----|----|----|----|
-| cs_demand_r2000_beta001_all | 0.431 | 0.656 | 0.086 | 420 | 221351 | 22 |
-| cs_demand_r1200_beta001_all | 0.402 | 0.634 | 0.067 | 420 | 286464 | 22 |
-| cs_demand_r2000_beta002_all | 0.387 | 0.622 | 0.088 | 420 | 216504 | 22 |
-| cs_demand_r800_beta002_all | 0.383 | 0.619 | 0.057 | 420 | 336217 | 22 |
-| cs_demand_r1200_beta002_all | 0.380 | 0.616 | 0.066 | 420 | 289395 | 22 |
-| cs_demand_r1600_beta002_all | 0.351 | 0.592 | 0.076 | 420 | 250228 | 22 |
-| cs_demand_r1200_beta004_all | 0.321 | 0.566 | 0.066 | 420 | 289598 | 22 |
-| cs_demand_r2000_beta004_all | 0.303 | 0.551 | 0.087 | 420 | 219146 | 22 |
-| cs_demand_r1200_beta002_closest | 0.050 | -0.224 | 0.066 | 420 | 288080 | 22 |
-| cs_demand_r2000_beta002_closest | 0.050 | -0.224 | 0.088 | 420 | 218463 | 22 |
+| cs_demand_r800_beta002_all | 0.543 | 0.737 | 0.070 | 420 | 274944 | 22 |
+| cs_demand_r1200_beta001_all | 0.526 | 0.725 | 0.067 | 420 | 283865 | 22 |
+| cs_demand_r1200_beta002_all | 0.515 | 0.717 | 0.067 | 420 | 283955 | 22 |
+| cs_demand_r1200_beta004_all | 0.468 | 0.684 | 0.068 | 420 | 280081 | 22 |
+| cs_demand_r2000_beta001_all | 0.455 | 0.675 | 0.087 | 420 | 219997 | 22 |
+| cs_demand_r2000_beta002_all | 0.437 | 0.661 | 0.088 | 420 | 218078 | 22 |
+| cs_demand_r1600_beta002_all | 0.420 | 0.648 | 0.081 | 420 | 237138 | 22 |
+| cs_demand_r2000_beta004_all | 0.401 | 0.633 | 0.087 | 420 | 219056 | 22 |
+| cs_demand_r1200_beta002_closest | 0.050 | -0.224 | 0.067 | 420 | 285622 | 22 |
+| cs_demand_r2000_beta002_closest | 0.050 | -0.224 | 0.088 | 420 | 216427 | 22 |
 
-The Rust-accelerated `cityseer_demand` gravity model achieves R² = **0.431** (Pearson r = 0.656) with the `cs_demand_r2000_beta001_all` variant. Crucially, it completes the gravity allocation, parallel Dijkstra, and Brandes backpropagation in just **0.086s**, making it by far the fastest gravity routing method.
+The Rust-accelerated `cityseer_demand` gravity model achieves R² = **0.543** (Pearson r = 0.737) with the `cs_demand_r800_beta002_all` variant. Crucially, it completes the gravity allocation, parallel Dijkstra, and Brandes backpropagation in just **0.070s**, making it by far the fastest gravity routing method.
 
 ### 3.6 Overall Comparison
 
 | Aspect           | cityseer      | cityseer_demand | madina    | sfnetworks |
 |------------------|---------------|-----------------|-----------|------------|
-| Best R²          | 0.008         | 0.431           | **0.025** | 0.466      |
-| Best Pearson r   | -0.091        | 0.656           | -0.160    | 0.682      |
-| Compute time (s) | 0.1–0.6       | 0.06–0.09       | 1.3–6.7   | 5.0        |
+| Best R²          | 0.008         | 0.543           | **0.025** | 0.466      |
+| Best Pearson r   | -0.091        | 0.737           | -0.160    | 0.682      |
+| Compute time (s) | 0.1–0.6       | 0.07–0.09       | 1.3–6.7   | 5.0        |
 | Language         | Python (Rust) | Python (Rust)   | Python    | R          |
 
 \`\`\`
@@ -204,7 +204,7 @@ Key differences:
 1.  **Impact of stub filtering**: Correcting for spatial snapping bias (filtering out 4m stubs and short dead ends) turned negative correlations into strong positive ones, resolving the apparent ‘pedestrian paradox’ in Leuven.
 2.  **Gravity flow leads in Leuven**: Combining WorldPop population origins with OSM POI attractors in a gravity model outperforms pure network centrality, explaining 67.6% of pedestrian count variance.
 3.  **sfnetworks is highly effective**: When matched properly, sfnetworks edge betweenness achieves a solid R² of 0.466 (Pearson r = +0.682) in Leuven, demonstrating strong predictive power.
-4.  **Rust acceleration via cityseer_demand**: Our new implementation of gravity demand routing directly in cityseer’s Rust backend achieves R² = 0.431 in just 0.086 seconds, which is a **~270x speedup** over the pure Python NetworkX gravity model.
+4.  **Rust acceleration via cityseer_demand**: Our new implementation of gravity demand routing directly in cityseer’s Rust backend achieves R² = 0.543 in just 0.088 seconds, which is a **~300x speedup** over the pure Python NetworkX gravity model.
 
 ### 3.8 Spatial Flow Distribution
 
@@ -216,7 +216,7 @@ Key differences:
 
 ![Leuven performance: throughput (left) and memory (right)](results/leuven_fig3_performance.png)
 
-**cityseer_demand cs_demand_r800_beta002_all** is fastest at 0.1s, processing **336,217** segments/sec. Memory ranges from **310** to **450** MB across all variants.
+**cityseer_demand cs_demand_r1200_beta001_all** is fastest at 0.1s, processing **285,622** segments/sec. Memory ranges from **310** to **450** MB across all variants.
 
 ## 5. Discussion
 

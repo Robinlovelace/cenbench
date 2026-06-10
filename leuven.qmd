@@ -432,7 +432,7 @@ display(Markdown(
     "1. **Impact of stub filtering**: Correcting for spatial snapping bias (filtering out 4m stubs and short dead ends) turned negative correlations into strong positive ones, resolving the apparent 'pedestrian paradox' in Leuven.\n"
     "2. **Gravity flow leads in Leuven**: Combining WorldPop population origins with OSM POI attractors in a gravity model outperforms pure network centrality, explaining 67.6% of pedestrian count variance.\n"
     "3. **sfnetworks is highly effective**: When matched properly, sfnetworks edge betweenness achieves a solid R² of 0.466 (Pearson r = +0.682) in Leuven, demonstrating strong predictive power.\n"
-    "4. **Rust acceleration via cityseer_demand**: Our new implementation of gravity demand routing directly in cityseer's Rust backend achieves R² = 0.431 in just 0.086 seconds, which is a **~270x speedup** over the pure Python NetworkX gravity model."
+    "4. **Rust acceleration via cityseer_demand**: Our new implementation of gravity demand routing directly in cityseer's Rust backend achieves R² = 0.543 in just 0.088 seconds, which is a **~300x speedup** over the pure Python NetworkX gravity model."
 ))
 ```
 
