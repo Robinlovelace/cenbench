@@ -399,6 +399,12 @@ display(Markdown(
 ))
 ```
 
+### 3.7 Spatial Flow Distribution
+
+![Figure 4: Spatial Distribution of Estimated Pedestrian Flow (Best Gravity Model)](results/leuven_fig4_flow.png)
+
+**Figure 4** presents the spatial distribution of estimated pedestrian flows across the Leuven walk network. Segment thickness and color intensity (magma colormap) are proportional to the estimated flow. Telraam pedestrian sensors are overlaid in red, with circles sized by average daily pedestrian counts and annotated for high-volume sensors. A highly interactive version of this map is available at [leuven-map.html](leuven-map.html) (or on the GitHub Release page).
+
 ## Performance
 
 ```{python}
@@ -523,6 +529,8 @@ We propose that:
 - `results/leuven_fig1_network.png` — Network map
 - `results/leuven_fig2_barplot.png` — R² comparison plot
 - `results/leuven_fig3_performance.png` — Speed and memory comparison
+- `results/leuven_fig4_flow.png` — Spatial distribution of predicted flow
+- `leuven-map.html` — Interactive Leaflet flow map
 
 ### Software Versions
 

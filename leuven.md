@@ -17,6 +17,7 @@ Robin Lovelace
   - [3.4 sfnetworks Performance](#34-sfnetworks-performance)
   - [3.5 Overall Comparison](#35-overall-comparison)
   - [3.6 Leuven vs Oxford Comparison](#36-leuven-vs-oxford-comparison)
+  - [3.7 Spatial Flow Distribution](#37-spatial-flow-distribution)
 - [Performance](#performance)
 - [5. Discussion](#5-discussion)
   - [5.1 Limitations](#51-limitations)
@@ -184,6 +185,12 @@ Key differences:
 2.  **Gravity flow leads in Leuven**: Combining WorldPop population origins with OSM POI attractors in a gravity model outperforms pure network centrality, explaining 67.6% of pedestrian count variance.
 3.  **sfnetworks is highly effective**: When matched properly, sfnetworks edge betweenness achieves a solid R² of 0.466 (Pearson r = +0.682) in Leuven, demonstrating strong predictive power.
 
+### 3.7 Spatial Flow Distribution
+
+![Figure 4: Spatial Distribution of Estimated Pedestrian Flow (Best Gravity Model)](results/leuven_fig4_flow.png)
+
+**Figure 4** presents the spatial distribution of estimated pedestrian flows across the Leuven walk network. Segment thickness and color intensity (magma colormap) are proportional to the estimated flow. Telraam pedestrian sensors are overlaid in red, with circles sized by average daily pedestrian counts and annotated for high-volume sensors. A highly interactive version of this map is available at [leuven-map.html](leuven-map.html) (or on the GitHub Release page).
+
 ## Performance
 
 ![Leuven performance: throughput (left) and memory (right)](results/leuven_fig3_performance.png)
@@ -245,6 +252,8 @@ Resolving the snapping anomaly highlights a critical issue in spatial network be
 - `results/leuven_fig1_network.png` — Network map
 - `results/leuven_fig2_barplot.png` — R² comparison plot
 - `results/leuven_fig3_performance.png` — Speed and memory comparison
+- `results/leuven_fig4_flow.png` — Spatial distribution of predicted flow
+- `leuven-map.html` — Interactive Leaflet flow map
 
 ### Software Versions
 
