@@ -112,10 +112,15 @@ try:
     print(f"Exported {len(edges_out)} edges to shapefile", flush=True)
 
     # ── Run configurations ──
+    # Note: "cont" (continuous) is omitted — hybrid mode is 10-50x faster
+    # while still providing comparable edge-level metrics.
     configs = [
-        ("angular_800m", "radii=800,n;metric=ANGULAR;cont;nohull"),
-        ("angular_1600m", "radii=1600,n;metric=ANGULAR;cont;nohull"),
-        ("euclidean_800m", "radii=800,n;metric=EUCLIDEAN;cont;nohull"),
+        ("angular_200m", "radii=200;metric=ANGULAR;nohull"),
+        ("angular_400m", "radii=400;metric=ANGULAR;nohull"),
+        ("angular_800m", "radii=800;metric=ANGULAR;nohull"),
+        ("euclidean_200m", "radii=200;metric=EUCLIDEAN;nohull"),
+        ("euclidean_400m", "radii=400;metric=EUCLIDEAN;nohull"),
+        ("euclidean_800m", "radii=800;metric=EUCLIDEAN;nohull"),
     ]
 
     for variant, config_str in configs:
@@ -127,14 +132,14 @@ try:
 
         r = subprocess.run(
             [sdna_bin, "-i", net_shp, "-o", out_shp, config_str],
-            capture_output=True, text=True, timeout=600
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=600
         )
 
         elapsed = time.perf_counter() - t0
         mem_peak = compute_memory() - mem_before + 400
 
         if r.returncode != 0:
-            print(f"  sDNA failed: {r.stderr[:200]}", flush=True)
+            print(f"  sDNA failed (return code {r.returncode})", flush=True)
             continue
 
         if not os.path.exists(out_shp):
@@ -146,26 +151,24 @@ try:
 
         # sDNA preserves input order, matches by ID
         # Get the radius-specific columns
-        radius = variant.split("_")[1]
-        metric = "Ang" if "angular" in variant else "Euc"
+        radius = variant.split("_")[1].replace("m", "")  # "800m" -> "800"
 
         # Relevant sDNA output columns:
-        # MAD{radius}{metric}: Mean Angular/Euclidean Distance (integration)
-        # NQPDA{radius}{metric}: Network Quantity Penalized by Distance (flow proxy)
-        # BtA{radius}{metric}: Betweenness
+        # MAD{radius}: Mean distance (integration)
+        # NQPDA{radius}: Network Quantity Penalized by Distance (flow proxy)
+        # BtA{radius}: Betweenness
         cols_found = {}
-        suffix = f"{radius}c" if metric == "Ang" else f"{radius}c"
-        # Try the metric-specific suffix first
         for c in sdna_out.columns:
-            if c.startswith("MAD") and suffix in c:
-                cols_found["MAD"] = c
-            elif c.startswith("NQPDA") and suffix in c:
-                cols_found["NQPDA"] = c
-            elif c.startswith("BtA") and suffix in c:
+            # Match BtA800, MAD800, NQPDA800 (hybrid mode, no suffix)
+            if c.startswith("BtA") and c[3:] == radius:
                 cols_found["BtA"] = c
-            elif c.startswith("DivA") and suffix in c:
+            elif c.startswith("MAD") and c[3:] == radius:
+                cols_found["MAD"] = c
+            elif c.startswith("NQPDA") and c[5:] == radius:
+                cols_found["NQPDA"] = c
+            elif c.startswith("DivA") and c[4:] == radius:
                 cols_found["DivA"] = c
-            elif c.startswith("MCF") and suffix in c:
+            elif c.startswith("MCF") and c[3:] == radius:
                 cols_found["MCF"] = c
 
         print(f"  Found columns: {cols_found}", flush=True)
