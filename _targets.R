@@ -82,6 +82,10 @@ list(
       "results/sfnetworks_bench_robust.R",
       "README.qmd",
       "references.bib",
+      "scripts/bench_aperta.py",
+      "scripts/merge_aperta.py",
+      "scripts/bench_sdna.py",
+      "scripts/profile_aperta.py",
       "oxford.qmd",
       "leuven.qmd"
     ),
@@ -143,6 +147,8 @@ list(
       run_python_script("scripts/leuven_extra_experiments.py")
       sf_lines <- run_r_script_capture("results/sfnetworks_bench_robust.R")
       append_sfnetworks_row("results/leuven_results.csv", sf_lines)
+      run_python_script("scripts/bench_aperta.py")
+      run_python_script("scripts/merge_aperta.py")
       c(
         "results/leuven_results.csv",
         list.files(pattern = "^leuven-map.*\\.html$", full.names = TRUE)

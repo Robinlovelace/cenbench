@@ -143,8 +143,8 @@ if m["n"] >= 3:
     })
     print(f"  degree: R²={m['r_squared']:.4f} r={m['pearson_r']:.4f} t={t:.1f}s", flush=True)
 
-# Betweenness weighted
-for k in [100, 200, 500]:
+# Betweenness weighted — keep only representative k=200
+for k in [200]:
     t0 = time.time()
     samp = rng.choice(all_n, size=min(k, len(all_n)), replace=False)
     btw = nx.edge_betweenness_centrality_subset(G2, samp, samp, weight="length", normalized=False)

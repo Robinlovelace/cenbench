@@ -1,0 +1,3 @@
+tool,variant,r_squared,pearson_r,spearman_r,compute_time_s,n_matched,peak_memory_mb,segments_per_sec,notes
+sdna,integrality,,,,,,,,Install sDNA+: pipx install sdna_plus. Runs sDNA integrality (network integration).
+sdna,betweenness,,,,,,,,Install sDNA+: pipx install sdna_plus. Runs sDNA betweenness (hybrid metric).
