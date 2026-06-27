@@ -1,0 +1,81 @@
+FROM ubuntu:24.04 AS sdna-build
+
+# Install GCC 10 (accepts legacy C++ code that GCC 13 rejects) + build deps
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    g++-10 build-essential curl git cmake pkg-config \
+    python3 python3-pip \
+    libboost1.83-dev libboost-system1.83-dev \
+    libboost-chrono1.83-dev libboost-date-time1.83-dev \
+    libboost-thread1.83-dev libboost-iostreams1.83-dev \
+    libboost-random1.83-dev libboost-math-dev \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Use GCC 10 explicitly
+ENV CC=gcc-10
+ENV CXX=g++-10
+
+# Copy sDNA+ source
+WORKDIR /src
+COPY sdna-plus/ .
+
+# Patch sources for Linux build
+RUN cd /src && \
+    # targetver.h: guard Windows SDK header
+    sed -i 's|#include <SDKDDKVer.h>|#ifdef _WINDOWS\n#include <SDKDDKVer.h>\n#endif|' sDNA/sdna_vs2008/targetver.h && \
+    # stdafx.h: add #ifdef _WINDOWS guard around Windows headers + dlfcn.h for Linux
+    sed -i '19s|// Windows Header|#ifdef _WINDOWS\n// Windows Header|' sDNA/sdna_vs2008/stdafx.h && \
+    sed -i '23a #else\n#include <dlfcn.h>\n#endif' sDNA/sdna_vs2008/stdafx.h && \
+    # stdafx.h: fix backslash to forward slash for any_iterator
+    sed -i 's|IteratorTypeErasure\\any_iterator\\any_iterator.hpp|IteratorTypeErasure/any_iterator/any_iterator.hpp|' \
+        sDNA/sdna_vs2008/stdafx.h && \
+    # stdafx.h: fix Boost multi_point include path for v1.83+
+    sed -i 's|boost/geometry/multi/geometries/multi_point.hpp|boost/geometry/geometries/multi_point.hpp|' \
+        sDNA/sdna_vs2008/stdafx.h && \
+    # calculationbase.h: add typename to dependent template iterators (GCC requirement)
+    sed -i \
+        -e 's/for (vector<T>::iterator/for (typename vector<T>::iterator/g' \
+        -e 's/for (vector<NetExpectedDataSource<T>[*]>::iterator/for (typename vector<NetExpectedDataSource<T>*>::iterator/g' \
+        -e 's/for (vector<NetExpectedDataSource<float>[*]>::iterator/for (typename vector<NetExpectedDataSource<float>*>::iterator/g' \
+        -e 's/for (vector<NetExpectedDataSource<string>[*]>::iterator/for (typename vector<NetExpectedDataSource<string>*>::iterator/g' \
+        -e 's/for (vector<NetExpectedDataSource<T>[*]>::const_iterator/for (typename vector<NetExpectedDataSource<T>*>::const_iterator/g' \
+        sDNA/sdna_vs2008/calculationbase.h && \
+    # sdna_output_utils.h: add const to reference params so temporaries can bind (C++11 rule)
+    sed -i -e 's|ExtraNameWrapper(OutputDataWrapper &od|ExtraNameWrapper(const OutputDataWrapper &od|g' \
+        sDNA/sdna_vs2008/sdna_output_utils.h && \
+    sed -i -e 's|ControlledRadialOutputDataWrapper(RadialOutputDataWrapper &data|ControlledRadialOutputDataWrapper(const RadialOutputDataWrapper &data|g' \
+        sDNA/sdna_vs2008/sdna_output_utils.h && \
+    echo "All patches applied"
+
+# Find Boost include path
+RUN BOOST_INC=$(dpkg -L libboost1.83-dev | grep 'include/boost/version.hpp' | head -1 | sed 's|/boost/version.hpp||') && \
+    echo "Boost include: $BOOST_INC" && \
+    echo "CXX: $(g++-10 --version | head -1)" && \
+    SDNA_SRC="sDNA/sdna_vs2008" && \
+    MUPARSER_SRC="sDNA/muparser/drop/src" && \
+    CXXFLAGS="-std=c++14 -O2 -fPIC -fopenmp -fpermissive -DNDEBUG -I${SDNA_SRC} -I${MUPARSER_SRC}/../include -I${BOOST_INC}" && \
+    mkdir -p /build/objs /build/objs/mu && \
+    echo "=== Compiling sDNA source ===" && \
+    for f in ${SDNA_SRC}/*.cpp; do \
+        echo "  $(basename $f)" && \
+        g++-10 $CXXFLAGS -c "$f" -o "/build/objs/$(basename $f .cpp).o" 2>&1 || exit 1; \
+    done && \
+    echo "=== Compiling MuParser ===" && \
+    for f in ${MUPARSER_SRC}/*.cpp; do \
+        echo "  mu/$(basename $f)" && \
+        g++-10 $CXXFLAGS -c "$f" -o "/build/objs/mu/$(basename $f .cpp).o" 2>&1 || exit 1; \
+    done && \
+    echo "=== Linking ===" && \
+    g++-10 -shared -fopenmp -ldl -lpthread \
+        /build/objs/*.o /build/objs/mu/*.o \
+        -o /build/sdna_vs2008.so && \
+    echo "=== Verifying OpenMP ===" && \
+    if readelf -d /build/sdna_vs2008.so | grep -q 'NEEDED.*gomp'; then \
+        echo "✓ OpenMP enabled (libgomp linked)"; \
+    else \
+        echo "⚠ No libgomp"; \
+    fi && \
+    nm -D /build/sdna_vs2008.so 2>/dev/null | grep -E 'GOMP_|omp_get_' | head -10 && \
+    echo "=== Build complete ==="
+
+FROM scratch
+COPY --from=sdna-build /build/sdna_vs2008.so /sdna_vs2008.so

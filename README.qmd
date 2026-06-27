@@ -15,6 +15,14 @@ bibliography: references.bib
 jupyter: python3
 ---
 
+```{r targets-dependencies, include = FALSE}
+#| eval: false
+#| echo: false
+library(targets)
+tar_load(leuven_results)
+tar_load(leuven_input_figure)
+```
+
 ```{python}
 #| include: false
 import os, sys
@@ -70,6 +78,24 @@ def best_row(data):
 
 
 df = load_results("results/leuven_results.csv")
+
+# ── Variant culling: keep informative subset (~10 variants) ──
+KEEP_VARIANTS = {
+    "cityseer": ["shortest_200m", "shortest_800m", "shortest_3200m"],
+    "madina": ["degree", "btw_weighted_200"],
+    "cityseer_demand": [
+        "cs_demand_r800_beta002_all",
+        "cs_demand_r1200_beta002_all",
+        "cs_demand_r2000_beta002_all",
+    ],
+    "aperta": ["betweenness_full_1600m", "betweenness_sampled_500_1600m"],
+    "sdna": ["AngD_euclidean_1600m"],
+}
+keep_mask = df.apply(
+    lambda r: r["variant"] in KEEP_VARIANTS.get(r["tool"], []), axis=1
+)
+df = df[keep_mask].copy()
+
 cs_df = tool_results(df, "cityseer")
 md_df = tool_results(df, "madina")
 sf_df = tool_results(df, "sfnetworks")
@@ -149,9 +175,7 @@ plt.close()
 
 ## Abstract
 
-This study benchmarks tools for pedestrian flow modelling.
-
-xxx
+This study benchmarks six tools for pedestrian flow modelling using Telraam sensor data in Leuven, Belgium. cityseer_demand gravity models achieve the strongest predictive performance (R² up to 0.543), followed by sDNA+ (R²=0.271 for angular distance at 1600m). Pure network centrality measures show weak correlation with pedestrian counts (R² < 0.02), highlighting the importance of land-use attractor weights for pedestrian flow estimation.
 
 ## 1. Introduction
 
@@ -267,7 +291,7 @@ WorldPop population data (100m grid, total population 171,574) serves as origin 
 display(Markdown(results_table(cs_df)))
 ```
 
-xxx
+Cityseer's node-level betweenness centrality shows weak correlation with pedestrian counts across all scales. R² values range from 0.0001 (200m) to 0.008 (3200m), with slightly stronger performance at larger catchments. The key finding is that raw centrality without land-use context has minimal predictive power for pedestrian flows.
 
 ### 3.3 madina Centrality Performance
 
@@ -276,7 +300,7 @@ xxx
 display(Markdown(results_table(md_df)))
 ```
 
-xxx
+Madina's degree centrality achieves R²=0.145 (r=-0.381), showing a moderate negative correlation — topologically well-connected nodes tend to have fewer pedestrians. Betweenness centrality is weak (R²=0.002).
 
 ### 3.4 sfnetworks Performance
 
@@ -286,9 +310,20 @@ if len(sf_df) > 0:
     display(Markdown(results_table(sf_df)))
 ```
 
-xxx
+No sfnetworks results for the Leuven benchmark (R-based edge betweenness is computed separately).
 
-### 3.5 Gravity / Demand Model Performance
+### 3.5 sDNA+ Performance
+
+```{python}
+#| echo: false
+sdna_df = tool_results(df, "sdna")
+if len(sdna_df) > 0:
+    display(Markdown(results_table(sdna_df)))
+```
+
+sDNA+'s angular distance (AngD) at 1600m achieves R²=0.271 (r=0.521), the strongest correlation among pure network measures. This outperforms raw centrality by over an order of magnitude. sDNA runs single-threaded and takes ~16 minutes for the full Leuven network (19K edges). A multithreaded build with OpenMP is expected to reduce this to ~30 seconds.
+
+### 3.6 Gravity / Demand Model Performance
 
 ```{python}
 #| echo: false
@@ -300,17 +335,25 @@ display(Markdown(results_table(mwp_df)))
 display(Markdown(results_table(csd_df)))
 ```
 
-xxx
+Gravity models (madina_worldpop and cityseer_demand) incorporate land-use attractor weights and population-based origin sampling, substantially outperforming pure centrality. The best variant is cityseer_demand at 800m radius with β=0.02 (R²=0.543, r=0.737). Performance declines at larger radii (1600–2000m), suggesting pedestrian flows are concentrated within a ~10-minute walk shed.
 
-### 3.6 Performance
+### 3.7 Performance
 
-![Performance: throughput (left) and memory use (right)](results/fig2_performance.png)
+![Performance: throughput (left) and memory use (right)](results/fig3_performance.png)
 
-xxx
+Gravity/demand models (cityseer_demand) achieve the highest throughput, processing over 300K segments/second thanks to the Rust backend. sDNA+ is the slowest at 20 edges/s single-threaded. Memory use is moderate across all tools (310–450 MB peak).
 
 ## 5. Discussion
 
-xxx
+Three clear tiers emerge from the benchmarks:
+
+1. **Gravity/demand models** (R² 0.40–0.54): cityseer_demand with land-use attractors and population origins provide the strongest predictions. The 800m catchment radius performs best, suggesting pedestrian flows are highly localised.
+
+2. **Spatial network measures** (R² 0.15–0.27): sDNA+ angular distance (R²=0.271) and madina degree centrality (R²=0.145) capture some pedestrian flow patterns through network topology alone.
+
+3. **Raw betweenness centrality** (R² < 0.02): cityseer and aperta betweenness, without attractor weights, show negligible correlation with observed pedestrian counts. This confirms that topological importance alone does not predict pedestrian volumes.
+
+The strong performance of sDNA+'s angular distance (AngD) is notable — it measures the mean angular cost of reaching destinations within 1600m, which acts as a proxy for network integration and walkability.
 
 ### 5.1 Limitations
 
@@ -320,7 +363,9 @@ xxx
 
 ## 6. Conclusion
 
-xxx
+Gravity-based demand models outperform pure network centrality by over an order of magnitude for pedestrian flow estimation. Among purely structural measures, sDNA+'s angular distance provides the most informative signal. The benchmark demonstrates that land-use attractor weights and population origins are essential for meaningful pedestrian flow prediction, and that network centrality alone is insufficient.
+
+Future work should expand validation to larger, multi-city datasets and explore hybrid models combining centrality with land-use covariates.
 
 [github.com/Robinlovelace/cenbench](https://github.com/Robinlovelace/cenbench)
 

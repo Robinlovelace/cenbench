@@ -34,7 +34,7 @@ Robin Lovelace
 
 This study benchmarks tools for pedestrian flow modelling — **cityseer**, **madina** (NetworkX), and **sfnetworks** — against Telraam pedestrian count data from Leuven, Belgium.
 
-Leuven has **38** Telraam sensors (vs [Oxford’s](oxford.md) 14), with higher average pedestrian counts (mean **286/day** vs Oxford’s lower counts). cityseer achieves weak R² (best = **0.008**) at `shortest_3200m` distance. madina degree centrality yields R² = **0.025** (Pearson r = -0.160). sfnetworks edge betweenness yields R² = **0.466** (Pearson r = 0.682). Notably, once the spatial matching stub bias is corrected, **madina_worldpop** gravity models achieve R² = **0.676** (Pearson r = 0.822) at `wp_r2000_beta002_all`. The benchmark compares **30** variants across **5** tools, matching up to **22** Telraam sensors with strong positive correlations for gravity and betweenness.
+Leuven has **38** Telraam sensors (vs [Oxford’s](oxford.md) 14), with higher average pedestrian counts (mean **286/day** vs Oxford’s lower counts). cityseer achieves weak R² (best = **0.008**) at `shortest_3200m` distance. madina degree centrality yields R² = **0.145** (Pearson r = -0.381). sfnetworks edge betweenness yields R² = **0.000** (Pearson r = 0.000). Notably, once the spatial matching stub bias is corrected, **madina_worldpop** gravity models achieve R² = **0.000** (Pearson r = 0.000) at `N/A`. The benchmark compares **22** variants across **5** tools, matching up to **22** Telraam sensors with strong positive correlations for gravity and betweenness.
 
 ## 1. Introduction
 
@@ -125,11 +125,11 @@ Sensors were matched to the nearest network node/edge using KD-tree spatial join
 
 | Variant        | R²    | Pearson r | Time (s) | RAM (MB) | Seg/s  | Matched |
 |----------------|-------|-----------|----------|----------|--------|---------|
-| shortest_3200m | 0.008 | -0.091    | 0.6      | 380      | 31382  | 22      |
-| shortest_800m  | 0.004 | -0.064    | 0.1      | 380      | 159299 | 22      |
-| shortest_1600m | 0.004 | -0.064    | 0.3      | 380      | 59309  | 22      |
-| shortest_200m  | 0.000 | -0.012    | 0.1      | 380      | 169385 | 22      |
-| shortest_400m  | 0.000 | -0.008    | 0.1      | 380      | 155816 | 22      |
+| shortest_3200m | 0.008 | -0.091    | 0.6      | 425      | 30722  | 22      |
+| shortest_800m  | 0.004 | -0.064    | 0.1      | 380      | 220314 | 22      |
+| shortest_1600m | 0.004 | -0.064    | 0.2      | 399      | 83424  | 22      |
+| shortest_200m  | 0.000 | -0.012    | 0.0      | 378      | 692100 | 22      |
+| shortest_400m  | 0.000 | -0.008    | 0.1      | 379      | 327063 | 22      |
 
 1.  **Weak predictive power**: The best variant is `shortest_3200m` with R²=0.008.
 2.  **Negative correlations**: All cityseer Pearson r values are **negative** (best = -0.091).
@@ -140,47 +140,39 @@ Sensors were matched to the nearest network node/edge using KD-tree spatial join
 
 | Variant          | R²    | Pearson r | Time (s) | RAM (MB) | Seg/s | Matched |
 |------------------|-------|-----------|----------|----------|-------|---------|
-| btw_weighted_100 | 0.025 | -0.160    | 1.6      | 420      | 11687 | 22      |
-| btw_weighted_500 | 0.018 | -0.133    | 6.7      | 420      | 2870  | 22      |
-| btw_weighted_200 | 0.016 | -0.127    | 2.9      | 420      | 6662  | 22      |
-| degree           | 0.005 | -0.074    | 1.3      | 400      | 14749 | 22      |
+| degree           | 0.145 | -0.381    | 0.7      | 435      | 26894 | 22      |
+| btw_weighted_200 | 0.002 | -0.041    | 3.0      | 431      | 6444  | 22      |
 
-1.  **Weighted betweenness (btw_weighted_100)** is the strongest baseline centrality predictor with R²=0.025 (Pearson r=-0.160).
+1.  **Weighted betweenness (btw_weighted_100)** is the strongest baseline centrality predictor with R²=0.145 (Pearson r=-0.381).
 2.  **Baseline centrality methods show weak inverse relationship** across all OD sample sizes.
 3.  **madina baseline centralities are weak** in this dataset, but the gravity variants show strong positive correlations.
 
 ### 3.4 sfnetworks Performance
 
-| Variant          | R²    | Pearson r | Time (s) | RAM (MB) | Seg/s | Matched |
-|------------------|-------|-----------|----------|----------|-------|---------|
-| edge_betweenness | 0.466 | 0.682     | 5.0      | 450      | 3808  | 22      |
-
-sfnetworks edge betweenness yields R²=0.466 (Pearson r=0.682) in 5s. This is stronger than the best cityseer variant (R²=0.008) and also stronger than the best madina baseline centrality variant (R²=0.025). The R-based workflow provides native spatial indexing and tidyverse integration.
-
 ### 3.5 cityseer_demand Performance
 
 | Variant | R² | Pearson r | Time (s) | RAM (MB) | Seg/s | Matched |
 |----|----|----|----|----|----|----|
-| cs_demand_r800_beta002_all | 0.543 | 0.737 | 0.070 | 420 | 274944 | 22 |
-| cs_demand_r1200_beta001_all | 0.526 | 0.725 | 0.067 | 420 | 283865 | 22 |
-| cs_demand_r1200_beta002_all | 0.515 | 0.717 | 0.067 | 420 | 283955 | 22 |
-| cs_demand_r1200_beta004_all | 0.468 | 0.684 | 0.068 | 420 | 280081 | 22 |
-| cs_demand_r2000_beta001_all | 0.455 | 0.675 | 0.087 | 420 | 219997 | 22 |
-| cs_demand_r2000_beta002_all | 0.437 | 0.661 | 0.088 | 420 | 218078 | 22 |
-| cs_demand_r1600_beta002_all | 0.420 | 0.648 | 0.081 | 420 | 237138 | 22 |
-| cs_demand_r2000_beta004_all | 0.401 | 0.633 | 0.087 | 420 | 219056 | 22 |
-| cs_demand_r1200_beta002_closest | 0.050 | -0.224 | 0.067 | 420 | 285622 | 22 |
-| cs_demand_r2000_beta002_closest | 0.050 | -0.224 | 0.088 | 420 | 216427 | 22 |
+| cs_demand_r800_beta002_all | 0.543 | 0.737 | 0.058 | 420 | 332446 | 22 |
+| cs_demand_r1200_beta001_all | 0.527 | 0.726 | 0.067 | 420 | 286256 | 22 |
+| cs_demand_r1200_beta002_all | 0.515 | 0.718 | 0.067 | 420 | 285916 | 22 |
+| cs_demand_r1200_beta004_all | 0.468 | 0.684 | 0.067 | 420 | 286438 | 22 |
+| cs_demand_r2000_beta001_all | 0.456 | 0.675 | 0.087 | 420 | 219737 | 22 |
+| cs_demand_r2000_beta002_all | 0.437 | 0.661 | 0.088 | 420 | 218157 | 22 |
+| cs_demand_r1600_beta002_all | 0.421 | 0.649 | 0.077 | 420 | 248712 | 22 |
+| cs_demand_r2000_beta004_all | 0.401 | 0.633 | 0.089 | 420 | 215211 | 22 |
+| cs_demand_r1200_beta002_closest | 0.050 | -0.224 | 0.067 | 420 | 284424 | 22 |
+| cs_demand_r2000_beta002_closest | 0.050 | -0.224 | 0.087 | 420 | 220480 | 22 |
 
-The Rust-accelerated `cityseer_demand` gravity model achieves R² = **0.543** (Pearson r = 0.737) with the `cs_demand_r800_beta002_all` variant. Crucially, it completes the gravity allocation, parallel Dijkstra, and Brandes backpropagation in just **0.070s**, making it by far the fastest gravity routing method.
+The Rust-accelerated `cityseer_demand` gravity model achieves R² = **0.543** (Pearson r = 0.737) with the `cs_demand_r800_beta002_all` variant. Crucially, it completes the gravity allocation, parallel Dijkstra, and Brandes backpropagation in just **0.058s**, making it by far the fastest gravity routing method.
 
 ### 3.6 Overall Comparison
 
 | Aspect           | cityseer      | cityseer_demand | madina    | sfnetworks |
 |------------------|---------------|-----------------|-----------|------------|
-| Best R²          | 0.008         | 0.543           | **0.025** | 0.466      |
-| Best Pearson r   | -0.091        | 0.737           | -0.160    | 0.682      |
-| Compute time (s) | 0.1–0.6       | 0.07–0.09       | 1.3–6.7   | 5.0        |
+| Best R²          | 0.008         | 0.543           | **0.145** | 0.000      |
+| Best Pearson r   | -0.091        | 0.737           | -0.381    | 0.000      |
+| Compute time (s) | 0.0–0.6       | 0.06–0.09       | 0.7–3.0   | N/A        |
 | Language         | Python (Rust) | Python (Rust)   | Python    | R          |
 
 \`\`\`
@@ -216,11 +208,11 @@ Key differences:
 
 ![Leuven performance: throughput (left) and memory (right)](results/leuven_fig3_performance.png)
 
-**cityseer_demand cs_demand_r1200_beta001_all** is fastest at 0.1s, processing **285,622** segments/sec. Memory ranges from **310** to **450** MB across all variants.
+**cityseer shortest_200m** is fastest at 0.0s, processing **692,100** segments/sec. Memory ranges from **378** to **435** MB across all variants.
 
 ## 5. Discussion
 
-The best-performing variant is `madina_worldpop wp_r2000_beta002_all` with R²=0.676. Unlike the initial results where all models inversely related to pedestrian counts, correcting for spatial matching bias has revealed a strong, positive relationship between gravity flow and pedestrian counts.
+The best-performing variant is `cityseer_demand cs_demand_r800_beta002_all` with R²=0.543. Unlike the initial results where all models inversely related to pedestrian counts, correcting for spatial matching bias has revealed a strong, positive relationship between gravity flow and pedestrian counts.
 
 The **resolution of the stub matching anomaly** is a key finding of this study. In complex street networks, standard KD-tree snapping often matches sensors to tiny, disconnected, or dead-end stubs (which have zero predicted path-based flow). By filtering out edges connecting to degree-1 nodes or with lengths under 15m *during matching*, sensors correctly snap to the main streets. When this snapping bias is removed, the correlation for `sfnetworks` jumps to +0.682 (R² = 0.466), and the `madina_worldpop` gravity models achieve R² up to 0.676 (Pearson r = +0.822) at a 2000m search radius.
 

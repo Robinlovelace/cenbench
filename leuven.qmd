@@ -13,6 +13,14 @@ execute:
 jupyter: python3
 ---
 
+```{r targets-dependencies, include = FALSE}
+#| eval: false
+#| echo: false
+library(targets)
+tar_load(leuven_results)
+tar_load(leuven_input_figure)
+```
+
 ```{python}
 #| include: false
 import os, sys

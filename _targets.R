@@ -3,57 +3,9 @@ library(tarchetypes)
 
 source("R/targets_helpers.R")
 
-quarto_available <- nzchar(Sys.which("quarto"))
-
 tar_option_set(
   error = "trim",
   memory = "auto"
-)
-
-report_targets <- tryCatch(
-  {
-    if (quarto_available) {
-      list(
-        readme_report = tar_quarto(
-          name = readme_report,
-          path = "README.qmd",
-          extra_files = c(
-            "results/leuven_results.csv",
-            "results/leuven_input_datasets.png",
-            "references.bib"
-          )
-        ),
-        oxford_report = tar_quarto(
-          name = oxford_report,
-          path = "oxford.qmd",
-          extra_files = c(
-            "results/combined_results.csv"
-          )
-        ),
-        leuven_report = tar_quarto(
-          name = leuven_report,
-          path = "leuven.qmd",
-          extra_files = c(
-            "results/leuven_results.csv",
-            "results/leuven_input_datasets.png"
-          )
-        )
-      )
-    } else {
-      list(
-        readme_report = tar_target(readme_report, "README.md", format = "file"),
-        oxford_report = tar_target(oxford_report, "oxford.md", format = "file"),
-        leuven_report = tar_target(leuven_report, "leuven.md", format = "file")
-      )
-    }
-  },
-  error = function(e) {
-    list(
-      readme_report = tar_target(readme_report, "README.md", format = "file"),
-      oxford_report = tar_target(oxford_report, "oxford.md", format = "file"),
-      leuven_report = tar_target(leuven_report, "leuven.md", format = "file")
-    )
-  }
 )
 
 list(
@@ -167,7 +119,9 @@ list(
     },
     format = "file"
   ),
-  report_targets$readme_report,
-  report_targets$oxford_report,
-  report_targets$leuven_report
+  
+  # Canonical Quarto targets with automatic dependency detection
+  tar_quarto(readme_report, "README.qmd"),
+  tar_quarto(oxford_report, "oxford.qmd"),
+  tar_quarto(leuven_report, "leuven.qmd")
 )

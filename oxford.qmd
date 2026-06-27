@@ -12,6 +12,13 @@ execute:
 jupyter: python3
 ---
 
+```{r targets-dependencies, include = FALSE}
+#| eval: false
+#| echo: false
+library(targets)
+tar_load(oxford_results)
+```
+
 ```{python}
 #| include: false
 import os, sys
