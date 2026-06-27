@@ -1,60 +1,29 @@
 #!/usr/bin/env python3
 """
 sDNA+ Pedestrian Flow Benchmark.
+Runs sDNA+ integrality/centrality on the Leuven walk network and
+validates against Telraam pedestrian counts.
 
-sDNA+ (Spatial Design Network Analysis plus) is a C++ spatial network
-analysis tool with Python bindings. It computes integrality, betweenness,
-and other centrality metrics on spatial networks.
+Installation: pipx install sdna_plus
+Then re-run this script.
 
-INSTALLATION:
-    pipx install sdna_plus
-
-    Alternatively build from source:
-    cd sdna-plus && pip install -e .
-
-USAGE:
-    The CLI tool works with shapefiles:
-        sdnaintegral -i network.shp -o output.shp
-
-    This script is a placeholder for automated benchmarking once sDNA+
-    is installed. It reads the Leuven OSM network and Telraam pedestrian
-    counts, runs sDNA+ integrality/metrics, evaluates R² against obs.
-
-DEPENDENCIES:
-    - sdna_plus (pipx install sdna_plus)
-    - geopandas, numpy, scipy, pandas, networkx
+Usage: python scripts/bench_sdna.py
+Output: results/sdna_results.csv
 """
-import os, sys, time, warnings, json, subprocess, tempfile
+import os, sys, time, warnings, json, subprocess, tempfile, shutil
 import numpy as np
 import pandas as pd
 import geopandas as gpd
+import psutil
 from scipy import stats
 from scipy.spatial import cKDTree
 from pyproj import Transformer
 warnings.filterwarnings("ignore")
 
-DATA_DIR = "data"
-RESULTS_DIR = "results"
+_process = psutil.Process()
+DATA_DIR = "data"; RESULTS_DIR = "results"
 os.makedirs(RESULTS_DIR, exist_ok=True)
-CRS_UTM = 32631
-MATCH_DIST = 200
-
-# ── Check sDNA availability ──
-def check_sdna():
-    """Return True if sDNA+ CLI is available."""
-    try:
-        r = subprocess.run(["sdnaintegral", "--version"],
-                           capture_output=True, text=True, timeout=10)
-        return r.returncode == 0
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        pass
-    try:
-        import sdna_plus
-        return True
-    except ImportError:
-        return False
-
-sdna_available = check_sdna()
+CRS_UTM = 32631; MATCH_DIST = 200
 
 # ── Sensors ──
 with open(f"{DATA_DIR}/leuven_telraam_pedestrians.geojson") as f:
@@ -74,6 +43,8 @@ print(f"Sensors: {len(tel)}", flush=True)
 # ── Network ──
 edges = gpd.read_file(f"{DATA_DIR}/leuven_walk_edges.gpkg")
 edges_u = edges.to_crs(CRS_UTM)
+# Add ID field needed by sDNA
+edges_u["id"] = range(len(edges_u))
 print(f"Edges: {len(edges_u)}", flush=True)
 
 # ── Metrics ──
@@ -86,85 +57,137 @@ def metrics(y, p):
     pr, _ = stats.pearsonr(yp, yt); sr, _ = stats.spearmanr(yp, yt)
     return {"r_squared": rv, "pearson_r": pr, "spearman_r": sr, "n_matched": n_m}
 
+
+def compute_memory():
+    return _process.memory_info().rss / (1024 * 1024)
+
+
 # ── Edge midpoint tree for sensor matching ──
 ec = np.array([(g.x, g.y) for g in edges_u.geometry.centroid])
 e_tree = cKDTree(ec); e_d, e_i = e_tree.query(tel_xy); e_match = e_d <= MATCH_DIST
 e_match_count = int(e_match.sum())
 print(f"Edge-matched sensors: {e_match_count}", flush=True)
 
+# ── Check sDNA availability ──
+def check_sdna():
+    try:
+        r = subprocess.run(["sdnaintegral"], capture_output=True, text=True, timeout=5)
+        return True
+    except FileNotFoundError:
+        pass
+    # Try .venv/bin/
+    venv_sdna = os.path.join(os.path.dirname(sys.executable), "sdnaintegral")
+    if os.path.exists(venv_sdna):
+        return True
+    return False
+
+sdna_bin = "sdnaintegral"
+if not check_sdna():
+    venv_sdna = os.path.join(os.path.dirname(sys.executable), "sdnaintegral")
+    if os.path.exists(venv_sdna):
+        sdna_bin = venv_sdna
+    else:
+        print("⚠  sDNA+ not available. Install: pipx install sdna_plus", flush=True)
+        # Write placeholder
+        pd.DataFrame([{
+            "tool": "sdna", "variant": "not_available",
+            "r_squared": None, "pearson_r": None, "spearman_r": None,
+            "compute_time_s": None, "n_matched": None,
+            "peak_memory_mb": None, "segments_per_sec": None,
+            "notes": "Install sDNA+: pipx install sdna_plus"
+        }]).to_csv(f"{RESULTS_DIR}/sdna_results.csv", index=False)
+        sys.exit(0)
+
+print(f"sDNA+ binary: {sdna_bin}", flush=True)
+
+# ── Export network to temporary shapefile ──
+workdir = tempfile.mkdtemp(prefix="sdna_bench_")
 all_results = []
 
-if not sdna_available:
-    print("\n⚠  sDNA+ not available. Run: pipx install sdna_plus", flush=True)
-    print("   Then re-run this script.\n", flush=True)
-
-    # Placeholder rows documenting expected results
-    for var, desc in [("integrality", "sDNA integrality (network integration)"),
-                      ("betweenness", "sDNA betweenness (hybrid metric)")]:
-        all_results.append({
-            "tool": "sdna",
-            "variant": var,
-            "r_squared": None,
-            "pearson_r": None,
-            "spearman_r": None,
-            "compute_time_s": None,
-            "n_matched": None,
-            "peak_memory_mb": None,
-            "segments_per_sec": None,
-            "notes": f"Install sDNA+: pipx install sdna_plus. Runs {desc}."
-        })
-    df = pd.DataFrame(all_results)
-    df.to_csv(f"{RESULTS_DIR}/sdna_results.csv", index=False)
-    print(f"Wrote placeholder to {RESULTS_DIR}/sdna_results.csv", flush=True)
-    sys.exit(0)
-
-# ── Export network to shapefile for sDNA CLI ──
-import tempfile, shutil
-workdir = tempfile.mkdtemp(prefix="sdna_bench_")
 try:
     net_shp = os.path.join(workdir, "leuven_walk.shp")
-    # sDNA expects a line shapefile with relevant attributes
-    edges_out = edges_u.copy()
-    edges_out["length_m"] = edges_out.geometry.length
-    # sDNA link ID
-    edges_out["id"] = range(len(edges_out))
+    edges_out = edges_u[["id", "geometry"]].copy()
+    edges_out["length"] = edges_out.geometry.length
     edges_out.to_file(net_shp)
+    print(f"Exported {len(edges_out)} edges to shapefile", flush=True)
 
-    # ═══════════ sDNA integrality ═══════════
-    print("── sDNA integrality ──", flush=True)
-    out_shp = os.path.join(workdir, "sdna_integral.shp")
-    t0 = time.perf_counter()
-    subprocess.run(
-        ["sdnaintegral", "-i", net_shp, "-o", out_shp,
-         "-a", "length_m", "-m", "Angle", "-n", "2000"],
-        capture_output=True, text=True, timeout=600
-    )
-    elapsed = time.perf_counter() - t0
+    # ── Run configurations ──
+    configs = [
+        ("angular_800m", "radii=800,n;metric=ANGULAR;cont;nohull"),
+        ("angular_1600m", "radii=1600,n;metric=ANGULAR;cont;nohull"),
+        ("euclidean_800m", "radii=800,n;metric=EUCLIDEAN;cont;nohull"),
+    ]
 
-    if os.path.exists(out_shp):
+    for variant, config_str in configs:
+        print(f"\n── sDNA {variant} ──", flush=True)
+        out_shp = os.path.join(workdir, f"sdna_{variant.replace(' ','_')}.shp")
+
+        mem_before = compute_memory()
+        t0 = time.perf_counter()
+
+        r = subprocess.run(
+            [sdna_bin, "-i", net_shp, "-o", out_shp, config_str],
+            capture_output=True, text=True, timeout=600
+        )
+
+        elapsed = time.perf_counter() - t0
+        mem_peak = compute_memory() - mem_before + 400
+
+        if r.returncode != 0:
+            print(f"  sDNA failed: {r.stderr[:200]}", flush=True)
+            continue
+
+        if not os.path.exists(out_shp):
+            print(f"  No output shapefile created", flush=True)
+            continue
+
+        # Read output
         sdna_out = gpd.read_file(out_shp)
-        # sDNA adds columns like Integrality, Betweenness, etc.
-        score_cols = [c for c in sdna_out.columns
-                      if c.lower() in ("integrality", "betweenness", "nqpdistance")]
-        if score_cols:
-            col = score_cols[0]
+
+        # sDNA preserves input order, matches by ID
+        # Get the radius-specific columns
+        radius = variant.split("_")[1]
+        metric = "Ang" if "angular" in variant else "Euc"
+
+        # Relevant sDNA output columns:
+        # MAD{radius}{metric}: Mean Angular/Euclidean Distance (integration)
+        # NQPDA{radius}{metric}: Network Quantity Penalized by Distance (flow proxy)
+        # BtA{radius}{metric}: Betweenness
+        cols_found = {}
+        suffix = f"{radius}c" if metric == "Ang" else f"{radius}c"
+        # Try the metric-specific suffix first
+        for c in sdna_out.columns:
+            if c.startswith("MAD") and suffix in c:
+                cols_found["MAD"] = c
+            elif c.startswith("NQPDA") and suffix in c:
+                cols_found["NQPDA"] = c
+            elif c.startswith("BtA") and suffix in c:
+                cols_found["BtA"] = c
+            elif c.startswith("DivA") and suffix in c:
+                cols_found["DivA"] = c
+            elif c.startswith("MCF") and suffix in c:
+                cols_found["MCF"] = c
+
+        print(f"  Found columns: {cols_found}", flush=True)
+
+        for metric_name, col in cols_found.items():
             vals = sdna_out.iloc[e_i[e_match]][col].values.astype(float)
-            m_meta = metrics(tel_ped[e_match], vals)
-            r2 = m_meta["r_squared"]; pr = m_meta["pearson_r"]
-            print(f"  Integrality R²={r2:.4f} r={pr:.4f} t={elapsed:.1f}s", flush=True)
-            all_results.append({
-                "tool": "sdna", "variant": f"integrality_{col}",
-                "r_squared": r2, "pearson_r": pr,
-                "spearman_r": m_meta["spearman_r"],
+            m = metrics(tel_ped[e_match], vals)
+            result = {
+                "tool": "sdna",
+                "variant": f"{metric_name}_{variant}",
+                "r_squared": m["r_squared"],
+                "pearson_r": m["pearson_r"],
+                "spearman_r": m["spearman_r"],
                 "compute_time_s": round(elapsed, 2),
-                "n_matched": m_meta["n_matched"],
-                "peak_memory_mb": None,
+                "n_matched": m["n_matched"],
+                "peak_memory_mb": round(mem_peak, 1),
                 "segments_per_sec": round(len(edges_u)/elapsed, 1) if elapsed > 0 else 0,
-            })
-        else:
-            print(f"  sDNA output columns: {list(sdna_out.columns)}", flush=True)
-    else:
-        print("  sDNA produced no output", flush=True)
+            }
+            all_results.append(result)
+            print(f"  {metric_name}: R²={m['r_squared']:.4f} r={m['pearson_r']:.4f}", flush=True)
+
+        print(f"  Time: {elapsed:.1f}s", flush=True)
 
 finally:
     shutil.rmtree(workdir, ignore_errors=True)
@@ -172,5 +195,9 @@ finally:
 # ═══════════ SAVE ═══════════
 df = pd.DataFrame(all_results)
 df.to_csv(f"{RESULTS_DIR}/sdna_results.csv", index=False)
-print(f"\nSaved {len(df)} results to {RESULTS_DIR}/sdna_results.csv", flush=True)
-print(df.to_string(), flush=True)
+print(f"\n── RESULTS ({len(df)} variants) ──", flush=True)
+for _, r in df.iterrows():
+    r2 = f"{r['r_squared']:.4f}" if not pd.isna(r.get("r_squared")) else "nan"
+    pr = f"{r['pearson_r']:.4f}" if not pd.isna(r.get("pearson_r")) else "nan"
+    print(f"  {r['tool']} {r['variant']}: R²={r2} r={pr} time={r['compute_time_s']:.1f}s", flush=True)
+print(f"Saved to {RESULTS_DIR}/sdna_results.csv", flush=True)
