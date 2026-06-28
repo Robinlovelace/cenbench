@@ -27,6 +27,8 @@ Robin Lovelace
   - [Reproducibility](#reproducibility)
   - [Software Versions](#software-versions)
 
+`{r targets-dependencies, include = FALSE} #| eval: false #| echo: false library(targets) tar_load(oxford_results)`
+
 ## Abstract
 
 This study benchmarks tools for pedestrian flow modelling —

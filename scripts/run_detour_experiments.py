@@ -67,7 +67,7 @@ def run_detour_simulation(edges, origins, destinations, telr, tel_xy, detour_rat
         decay=True,
         decay_method='exponent',
         beta=0.002,
-        num_cores=8,
+        num_cores=2,
         origin_weights=True,
         origin_weight_attribute='population',
         closest_destination=False,

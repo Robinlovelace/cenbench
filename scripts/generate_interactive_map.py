@@ -47,7 +47,7 @@ def run_simulation_and_generate_html():
         decay=True,
         decay_method='exponent',
         beta=0.002,
-        num_cores=8,
+        num_cores=2,
         origin_weights=True,
         origin_weight_attribute='population',
         closest_destination=False,
@@ -84,6 +84,12 @@ def run_simulation_and_generate_html():
             matched_edge = filtered_gdf.iloc[i_filt[idx]]
             telr.loc[idx, 'matched_flow'] = float(matched_edge['betweenness'])
             telr.loc[idx, 'matched_dist'] = float(d_filt[idx])
+            
+    # Save best predictions for option A scatter plots
+    pd.DataFrame({
+        "observed": tel_ped,
+        "predicted": telr["matched_flow"].values
+    }).to_csv(os.path.join(RESULTS_DIR, "madina_worldpop_best_predictions.csv"), index=False)
             
     # Reproject to WGS84 (EPSG:4326) for Leaflet
     print("5. Reprojecting layers to WGS84...", flush=True)

@@ -190,6 +190,13 @@ try:
             all_results.append(result)
             print(f"  {metric_name}: R²={m['r_squared']:.4f} r={m['pearson_r']:.4f}", flush=True)
 
+            # Save best predictions for option A scatter plots
+            if variant == "angular_800m" and metric_name == "MAD":
+                pd.DataFrame({
+                    "observed": tel_ped[e_match],
+                    "predicted": vals
+                }).to_csv("results/sdna_best_predictions.csv", index=False)
+
         print(f"  Time: {elapsed:.1f}s", flush=True)
 
 finally:

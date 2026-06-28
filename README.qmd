@@ -89,7 +89,6 @@ KEEP_VARIANTS = {
         "cs_demand_r1200_beta002_all",
         "cs_demand_r2000_beta002_all",
     ],
-    "aperta": ["betweenness_full_1600m", "betweenness_sampled_500_1600m"],
     "sdna": ["MAD_angular_800m", "MAD_angular_400m", "MAD_angular_200m", "BtA_angular_800m", "NQPDA_angular_800m"],
 }
 keep_mask = df.apply(
@@ -99,7 +98,6 @@ df = df[keep_mask].copy()
 
 cs_df = tool_results(df, "cityseer")
 md_df = tool_results(df, "madina")
-sf_df = tool_results(df, "sfnetworks")
 mwp_df = tool_results(df, "madina_worldpop")
 csd_df = tool_results(df, "cityseer_demand")
 ```
@@ -126,10 +124,12 @@ for i, (idx, row) in enumerate(plot_df.iterrows()):
     r2 = row['r_squared']
     ax.text(max(0.002, r2 + 0.005), i, f"R²={r2:.3f}", va='center', fontsize=7, fontweight='bold')
 ax.set_yticks(range(len(plot_df)))
-ax.set_yticklabels([f"{r['tool']}\n{r['variant']}" for _, r in plot_df.iterrows()], fontsize=7)
+ax.set_yticklabels([f"{r['tool']}\n{r['variant']}" for _, r in plot_df.iterrows()], fontsize=8)
 ax.set_xlabel("R² (coefficient of determination)", fontsize=11)
 ax.set_title("Leuven Benchmark Results: R² by Method Variant", fontsize=13, fontweight='bold')
 ax.set_xlim(0, max(plot_df['r_squared']) * 1.25)
+ax.grid(True, axis='x', linestyle=':', alpha=0.6, zorder=0)
+ax.set_axisbelow(True)
 from matplotlib.patches import Patch
 legend_elements = [Patch(facecolor=colors[t], label=t) for t in colors if t in plot_df['tool'].values]
 ax.legend(handles=legend_elements, loc='lower right', fontsize=9)
@@ -153,10 +153,12 @@ speed_df = perf_df.sort_values('segments_per_sec', ascending=True)
 s_colors = [colors_bar.get(t, '#95a5a6') for t in speed_df['tool']]
 ax1.barh(range(len(speed_df)), speed_df['segments_per_sec'], color=s_colors, edgecolor='white')
 ax1.set_yticks(range(len(speed_df)))
-ax1.set_yticklabels([f"{r['tool']}\n{r['variant']}" for _, r in speed_df.iterrows()], fontsize=6)
+ax1.set_yticklabels([f"{r['tool']}\n{r['variant']}" for _, r in speed_df.iterrows()], fontsize=8)
 ax1.set_xlabel("Segments / sec (log scale)", fontsize=11)
 ax1.set_title("Throughput", fontsize=13, fontweight='bold')
 ax1.set_xscale('log')
+ax1.grid(True, axis='x', linestyle=':', alpha=0.5, zorder=0)
+ax1.set_axisbelow(True)
 
 # Memory subplot
 if 'peak_memory_mb' in df.columns and df['peak_memory_mb'].notna().any():
@@ -164,14 +166,16 @@ if 'peak_memory_mb' in df.columns and df['peak_memory_mb'].notna().any():
     r_colors = [colors_bar.get(t, '#95a5a6') for t in ram_df['tool']]
     ax2.barh(range(len(ram_df)), ram_df['peak_memory_mb'], color=r_colors, edgecolor='white')
     ax2.set_yticks(range(len(ram_df)))
-    ax2.set_yticklabels([f"{r['tool']}\n{r['variant']}" for _, r in ram_df.iterrows()], fontsize=6)
+    ax2.set_yticklabels([f"{r['tool']}\n{r['variant']}" for _, r in ram_df.iterrows()], fontsize=8)
     ax2.set_xlabel("Peak RAM (MB)", fontsize=11)
     ax2.set_title("Memory Use", fontsize=13, fontweight='bold')
+    ax2.grid(True, axis='x', linestyle=':', alpha=0.5, zorder=0)
+    ax2.set_axisbelow(True)
     for i, (_, r) in enumerate(ram_df.iterrows()):
-        ax2.text(r['peak_memory_mb'] + 5, i, f"{r['peak_memory_mb']:.0f} MB", va='center', fontsize=6)
+        ax2.text(r['peak_memory_mb'] + 5, i, f"{r['peak_memory_mb']:.0f} MB", va='center', fontsize=7)
 
 plt.tight_layout()
-fig.savefig("results/fig2_performance.png", dpi=150, bbox_inches='tight')
+fig.savefig("results/fig3_performance.png", dpi=150, bbox_inches='tight')
 plt.close()
 ```
 
@@ -232,9 +236,9 @@ The Leuven walk network has 19,118 edges. The 38 Telraam sensors report an avera
 
 WorldPop population data (100m grid, total population 171,574) serves as origin weights for gravity models. POI attractors (800 points across 7 categories including universities, dining, shops, transit stations) provide destination weights.
 
-![Leuven input datasets: (a) walk network, (b) Telraam sensor locations with daily pedestrian counts, (c) WorldPop population grid, (d) POI attractors by category, (e) Telraam road segments, (f) composite overlay](results/leuven_input_datasets.png)
+![Leuven input datasets: (a) walk network & monitored road segments, (b) Telraam sensor locations with daily average pedestrian counts, (c) WorldPop population grid (origins), (d) POI attractors by category (destinations)](results/leuven_input_datasets.png)
 
-**Figure 1** visualises all six datasets. The Telraam sensor distribution shows high pedestrian volumes concentrated in the city centre (250–4,377/day) with moderate volumes on arterial routes and suburban streets (50–250/day).
+**Figure 2** visualises these input datasets. The Telraam sensor distribution shows high pedestrian volumes concentrated in the city centre (250–4,377/day) with moderate volumes on arterial routes and suburban streets (50–250/day).
 
 ## 2. Methods
 
@@ -304,6 +308,8 @@ ax.set_yticklabels([f"{r['tool']}\n{r['variant']}" for _, r in grav_df.iterrows(
 ax.set_xlabel("R²", fontsize=11)
 ax.set_title("Gravity/Demand Models: R² Comparison", fontsize=12, fontweight='bold')
 ax.set_xlim(0, max(grav_df['r_squared']) * 1.2)
+ax.grid(True, axis='x', linestyle=':', alpha=0.6, zorder=0)
+ax.set_axisbelow(True)
 from matplotlib.patches import Patch
 glegend = [Patch(facecolor=grav_colors[t], label=t) for t in grav_colors if t in grav_df['tool'].values]
 ax.legend(handles=glegend, loc='lower right', fontsize=9)
@@ -328,15 +334,7 @@ display(Markdown(results_table(cs_df)))
 display(Markdown(results_table(md_df)))
 ```
 
-#### 3.2.3 sfnetworks
-
-```{python}
-#| echo: false
-if len(sf_df) > 0:
-    display(Markdown(results_table(sf_df)))
-```
-
-#### 3.2.4 sDNA+
+#### 3.2.3 sDNA+
 
 ```{python}
 #| echo: false
@@ -369,11 +367,11 @@ display(Markdown(results_table(csd_df)))
 
 Three clear tiers emerge from the benchmarks:
 
-1. **Gravity/demand models** (R² 0.47–0.68): madina_worldpop with population-weighted origins and cost-decayed destination attraction achieves the top result (R²=0.676 at 2000m, β=0.02). cityseer_demand at 800m (R²=0.543) performs best at shorter ranges. sDNA+ Mean Angular Distance at 800m (R²=0.468) and sfnetworks edge betweenness (R²=0.466) provide comparable predictive power.
+1. **Gravity/demand models** (R² 0.47–0.68): `madina_worldpop` with population-weighted origins and cost-decayed destination attraction achieves the top result (R²=0.676 at 2000m, β=0.002). `cityseer_demand` at 800m (R²=0.543) performs best at shorter ranges.
+2. **Spatial network measures** (R² 0.15–0.47): `sDNA+` Mean Angular Distance at 800m (R²=0.468) is the top purely structural network topology measure. At smaller radii, `sDNA+` MAD also captures a moderate signal (R²=0.264 at 200m, 0.353 at 400m). `madina` degree centrality explains a smaller fraction of variance (R²=0.145).
+3. **Raw betweenness centrality** (R² < 0.02): `cityseer` shortest path betweenness, without attractor weights, shows negligible correlation with observed pedestrian counts.
 
-2. **Spatial network measures** (R² 0.15–0.27): sDNA+ MAD at smaller radii (R²=0.264 at 200m, 0.353 at 400m) and madina degree centrality (R²=0.145) capture pedestrian flow patterns through network topology alone.
-
-3. **Raw betweenness centrality** (R² < 0.02): cityseer and aperta betweenness, without attractor weights, show negligible correlation with observed pedestrian counts.
+Other tools (`sfnetworks` and `aperta`) were also evaluated and are documented in [Appendix: Other Centrality & Flow Modelling Tools](appendix-other-tools.md).
 
 ### 5.1 Limitations
 
@@ -383,7 +381,7 @@ Three clear tiers emerge from the benchmarks:
 
 ## 6. Conclusion
 
-Gravity-based demand models (madina_worldpop, cityseer_demand) outperform pure network centrality by over an order of magnitude for pedestrian flow estimation. The top result (R²=0.676) comes from madina_worldpop with population-weighted origins and distance-decayed destination attraction. Among purely structural measures, sDNA+ Mean Angular Distance (R²=0.468 at 800m) and sfnetworks edge betweenness (R²=0.466) provide the most informative signals. The benchmark demonstrates that land-use attractor weights and population origins are essential for meaningful pedestrian flow prediction, and that raw network centrality alone is insufficient.
+Gravity-based demand models (`madina_worldpop`, `cityseer_demand`) outperform pure network centrality by over an order of magnitude for pedestrian flow estimation. The top result (R²=0.676) comes from `madina_worldpop` with population-weighted origins and distance-decayed destination attraction. Among purely structural measures, `sDNA+` Mean Angular Distance (R²=0.468 at 800m) provides the most informative topological signal. The benchmark demonstrates that land-use attractor weights and population origins are essential for meaningful pedestrian flow prediction, and that raw network centrality alone is insufficient.
 
 Future work should expand validation to larger, multi-city datasets and explore hybrid models combining centrality with land-use covariates.
 

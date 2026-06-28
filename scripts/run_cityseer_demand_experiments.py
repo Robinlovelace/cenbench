@@ -197,6 +197,12 @@ for idx in range(len(telr)):
         telr.loc[idx, 'matched_flow'] = float(matched_edge['betweenness'])
         telr.loc[idx, 'matched_dist'] = float(d_e[idx])
 
+# Save best predictions for option A scatter plots
+pd.DataFrame({
+    "observed": telr["avg_daily_pedestrians"],
+    "predicted": telr["matched_flow"]
+}).to_csv("results/cityseer_demand_best_predictions.csv", index=False)
+
 # Reproject to EPSG:4326 for Leaflet
 edges_gdf_4326 = edges_gdf.to_crs(epsg=4326)
 telr_4326 = telr.to_crs(epsg=4326)
