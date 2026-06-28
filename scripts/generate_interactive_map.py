@@ -32,7 +32,7 @@ def run_simulation_and_generate_html():
     origins = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_worldpop_origins.geojson'))).to_crs(CRS_UTM)
     destinations = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_attractors.geojson'))).to_crs(CRS_UTM)
     
-    print("4. Running best gravity simulation (wp_r2000_beta002_all)...", flush=True)
+    print("4. Running best gravity simulation (wp_r1500_beta002_all)...", flush=True)
     z = Zonal()
     z.load_layer(name='streets', source=edges)
     z.create_street_network(source_layer='streets', weight_attribute='length')
@@ -44,7 +44,7 @@ def run_simulation_and_generate_html():
     
     results = parallel_betweenness(
         z.network,
-        search_radius=2000,
+        search_radius=1500,
         detour_ratio=1.0,
         decay=True,
         decay_method='exponent',

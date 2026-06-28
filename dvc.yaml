@@ -44,9 +44,6 @@ stages:
       - results/madina_worldpop_best_predictions.csv
       - results/cityseer_demand_best_predictions.csv
       - results/sdna_best_predictions.csv
-    outs:
-      - results/leuven_input_datasets.png
-      - results/fig4_tool_panels.png
 
   render_report:
     cmd: quarto render README.qmd --to gfm

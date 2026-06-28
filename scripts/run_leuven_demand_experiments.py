@@ -148,21 +148,17 @@ def main():
     
     # ── 10 experiments to test ──
     experiments = [
-        # Exp 1-5: Varying search radius (with beta=0.001)
+        # Optimized local configurations
+        {"name": "wp_r1500_det100_all_beta002", "search_radius": 1500, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.002},
+        {"name": "wp_r1400_det100_all_beta002", "search_radius": 1400, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.002},
+        {"name": "wp_r1600_det100_all_beta002", "search_radius": 1600, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.002},
+        {"name": "wp_r1200_det100_all_beta0015", "search_radius": 1200, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.0015},
         {"name": "wp_r1500_det100_all_beta001", "search_radius": 1500, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.001},
         {"name": "wp_r2000_det100_all_beta001", "search_radius": 2000, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.001},
         {"name": "wp_r2500_det100_all_beta001", "search_radius": 2500, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.001},
         {"name": "wp_r3000_det100_all_beta001", "search_radius": 3000, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.001},
-        {"name": "wp_r4000_det100_all_beta001", "search_radius": 4000, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.001},
-        # Exp 6: Closest destination only
         {"name": "wp_r3000_det100_closest_beta001", "search_radius": 3000, "detour_ratio": 1.0, "closest_destination": True, "decay": True, "beta": 0.001},
-        # Exp 7-8: Varying beta (distance sensitivity)
-        {"name": "wp_r3000_det100_all_beta0005", "search_radius": 3000, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.0005},
         {"name": "wp_r3000_det100_all_beta002", "search_radius": 3000, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.002},
-        # Exp 9: No distance decay
-        {"name": "wp_r3000_det100_all_nodecay", "search_radius": 3000, "detour_ratio": 1.0, "closest_destination": False, "decay": False, "beta": 0.001},
-        # Exp 10: Extended regional catchment
-        {"name": "wp_r5000_det100_all_beta001", "search_radius": 5000, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.001},
     ]
     
     new_results = []

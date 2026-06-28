@@ -81,10 +81,10 @@ KEEP_VARIANTS = {
     "cityseer": ["shortest_200m", "shortest_800m", "shortest_3200m"],
     "madina": ["degree", "btw_weighted_200"],
     "madina_worldpop": [
-        "wp_r2000_det100_all_beta001",
-        "wp_r3000_det100_all_beta001",
-        "wp_r3000_det100_all_beta0005",
-        "wp_r3000_det100_all_beta002",
+        "wp_r1500_det100_all_beta002",
+        "wp_r1400_det100_all_beta002",
+        "wp_r1600_det100_all_beta002",
+        "wp_r1200_det100_all_beta0015",
     ],
     "cityseer_demand": [
         "cs_demand_r800_beta002_all",
@@ -401,12 +401,42 @@ display(Markdown(results_table(csd_df)))
 
 ## Appendix {.unnumbered}
 
-### Reproducibility
+### How to Run and Update Benchmarks
 
+The benchmark suite is fully orchestrated using **DVC** (Data Version Control) to manage dependencies, execution caching, and outputs.
+
+#### 1. Setup the Environment
+Ensure you have the required dependencies installed (including Python packages and `sDNA+` CLI) by running:
+```bash
+pip install -r requirements.txt
+```
+
+#### 2. Run the Pipeline
+To run the entire benchmark pipeline (prepare demand datasets, run cityseer, madina, and sDNA benchmarks, generate visual figures, and compile the final report):
+```bash
+dvc repro
+```
+DVC will trace dependencies and execute only the stages whose code, configurations, or data inputs have changed, retrieving the rest from cache.
+
+#### 3. Rapid Testing Mode
+To quickly test code changes on a lightweight 5,900-edge cropped dataset rather than the full 19k edge network:
+1. Open `scripts/config.py`.
+2. Toggle `TEST_MODE = True`.
+3. Run `dvc repro`.
+Remember to flip `TEST_MODE = False` before committing final results.
+
+#### 4. Add/Modify Experiments
+- **sDNA+**: Edit configurations in `scripts/bench_sdna.py`.
+- **Madina (Zonal)**: Edit the dictionary grid list in `scripts/run_leuven_demand_experiments.py`.
+- **Cityseer**: Edit configurations in `scripts/run_cityseer_demand_experiments.py`.
+
+### Project Structure & Reproducibility
+
+- `dvc.yaml` — Stage orchestration and dependencies
 - `scripts/bench_all.py` — Unified benchmark runner
-- `results/leuven_results.csv` — Auto-generated results
+- `results/leuven_results.csv` — Compiled metrics output
 - `results/fig1_barplot.png` — R² comparison plot
-- `results/fig2_performance.png` — Speed and memory comparison
+- `results/fig2_performance.png` — Throughput and memory use comparison
 
 ```{python}
 #| echo: false
