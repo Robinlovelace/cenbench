@@ -21,6 +21,7 @@ stages:
       - scripts/run_leuven_demand_experiments.py
       - scripts/bench_sdna.py
       - scripts/generate_interactive_map.py
+      - scripts/merge_results.py
       - scripts/config.py
       - data/leuven_walk_edges.gpkg
       - data/leuven_telraam_pedestrians_4326.geojson

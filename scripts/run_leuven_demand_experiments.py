@@ -188,20 +188,10 @@ def main():
         if res:
             new_results.append(res)
             
-    # Save results to CSV
+    # Save results using merge helper
     df_new = pd.DataFrame(new_results)
-    if os.path.exists(RESULTS_FILE):
-        try:
-            df_old = pd.read_csv(RESULTS_FILE)
-        except pd.errors.EmptyDataError:
-            df_old = pd.DataFrame(columns=["tool", "variant", "r_squared", "pearson_r", "spearman_r", "compute_time_s", "n_matched", "n_obs", "peak_memory_mb", "segments_per_sec"])
-        # Filter out old madina_worldpop variants to avoid duplicates
-        df_old = df_old[df_old["tool"] != "madina_worldpop"]
-        df_all = pd.concat([df_old, df_new], ignore_index=True)
-    else:
-        df_all = df_new
-        
-    df_all.to_csv(RESULTS_FILE, index=False)
+    from scripts.merge_results import merge_to_csv
+    merge_to_csv("madina_worldpop", df_new, RESULTS_FILE)
     print(f"\nSaved {len(df_new)} results to {RESULTS_FILE}")
     
     # Output the best experiment by R2

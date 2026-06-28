@@ -168,13 +168,17 @@ for k in [200]:
         })
         print(f"  btw_{k}: R²={m['r_squared']:.4f} r={m['pearson_r']:.4f} t={t:.1f}s", flush=True)
 
-# ═══════════ SAVE ═══════════
+#  SAVE (merge per tool)
+from scripts.merge_results import merge_to_csv
+
 df = pd.DataFrame(all_results)
-out = f"{RESULTS_DIR}/leuven_results.csv"
-df.to_csv(out, index=False)
+cs_rows = df[df["tool"] == "cityseer"]
+md_rows = df[df["tool"] == "madina"]
+merge_to_csv("cityseer", cs_rows, f"{RESULTS_DIR}/leuven_results.csv")
+merge_to_csv("madina", md_rows, f"{RESULTS_DIR}/leuven_results.csv")
 print(f"\n── RESULTS ({len(df)} variants) ──", flush=True)
 for _, r in df.iterrows():
     r2 = f"{r['r_squared']:.4f}" if not pd.isna(r['r_squared']) else "nan"
     pr = f"{r['pearson_r']:.4f}" if not pd.isna(r['pearson_r']) else "nan"
     print(f"  {r['tool']} {r['variant']}: R²={r2} r={pr} time={r['compute_time_s']:.1f}s matched={r['n_matched']}", flush=True)
-print(f"Saved to {out}", flush=True)
+print(f"Saved to {RESULTS_DIR}/leuven_results.csv", flush=True)

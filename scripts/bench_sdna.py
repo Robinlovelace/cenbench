@@ -206,18 +206,8 @@ finally:
 
 # ═══════════ SAVE (merge into leuven_results.csv) ═══════════
 df = pd.DataFrame(all_results)
-results_file = f"{RESULTS_DIR}/leuven_results.csv"
-if os.path.exists(results_file):
-    try:
-        df_old = pd.read_csv(results_file)
-    except (pd.errors.EmptyDataError, pd.errors.ParserError):
-        df_old = pd.DataFrame(columns=df.columns)
-    # Remove old sDNA rows to avoid duplicates
-    df_old = df_old[df_old["tool"] != "sdna"]
-    df_all = pd.concat([df_old, df], ignore_index=True)
-else:
-    df_all = df
-df_all.to_csv(results_file, index=False)
+from scripts.merge_results import merge_to_csv
+merge_to_csv("sdna", df, f"{RESULTS_DIR}/leuven_results.csv")
 # Also save standalone copy for convenience
 df.to_csv(f"{RESULTS_DIR}/sdna_results.csv", index=False)
 print(f"\n── RESULTS ({len(df)} variants) ──", flush=True)

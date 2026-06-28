@@ -183,8 +183,8 @@ stages:
     deps:
     - path: results/cityseer_demand_best_predictions.csv
       hash: md5
-      md5: 380811efefa3108dee348ff970a80bbd
-      size: 710
+      md5: 196dbc4cc55ceac226a88bb1ee1b5b8c
+      size: 707
     - path: results/madina_worldpop_best_predictions.csv
       hash: md5
       md5: d5fb8834122553b30d1dc9780283d1b2
@@ -230,12 +230,12 @@ stages:
       size: 473509
     - path: scripts/bench_leuven.py
       hash: md5
-      md5: 346a5ffe5d291d347cf1b8bce5975dd4
-      size: 6966
+      md5: a4bde747ca27337e28c25128ea52be82
+      size: 7137
     - path: scripts/bench_sdna.py
       hash: md5
-      md5: 896c65e4040315b4fb8446383c5555ba
-      size: 8914
+      md5: ca86847d7c67e9d1612b60eba65a47b6
+      size: 8563
     - path: scripts/config.py
       hash: md5
       md5: 2043848db54d156cccece7025547291e
@@ -244,30 +244,34 @@ stages:
       hash: md5
       md5: a0b51c732cc5d8b4405294d8ffdd62b3
       size: 30263
+    - path: scripts/merge_results.py
+      hash: md5
+      md5: 3bf194b8ca5e6d9d8ace813e1992e002
+      size: 1049
     - path: scripts/run_cityseer_demand_experiments.py
       hash: md5
-      md5: 63183984532de9984c0965d64066fc78
-      size: 32970
+      md5: 8f36a220a28c2b10a9f49412f71c782b
+      size: 32493
     - path: scripts/run_leuven_demand_experiments.py
       hash: md5
-      md5: 9db0d537cbeae75325fcb1eaa78e2616
-      size: 9211
+      md5: e7825e81104f6725320719599149d6bb
+      size: 8730
     outs:
     - path: leuven-map-cityseer-demand.html
       hash: md5
-      md5: 577895b29665bc410c2ea82bbfa9696f
-      size: 5575361
+      md5: a53ecca32b9829f25603e916484c1433
+      size: 5575292
     - path: leuven-map.html
       hash: md5
       md5: 714c2e14af0856cb35afde5b79fdd87c
       size: 2466202
     - path: results/cityseer_demand_best_predictions.csv
       hash: md5
-      md5: 380811efefa3108dee348ff970a80bbd
-      size: 710
+      md5: 196dbc4cc55ceac226a88bb1ee1b5b8c
+      size: 707
     - path: results/leuven_results.csv
       hash: md5
-      md5: 7af2590dcb8d1edbad99c0009ed14298
+      md5: 463e0ec3a627be5b47f18e06d5d09898
       size: 4995
     - path: results/madina_worldpop_best_predictions.csv
       hash: md5
@@ -279,8 +283,8 @@ stages:
       size: 514
     - path: results/sdna_results.csv
       hash: md5
-      md5: aa4fd1a9306101b28359247bd6609055
-      size: 1824
+      md5: 3e70a6fcd8384734c07272f897675cc4
+      size: 1823
   render_report:
     cmd: quarto render README.qmd --to gfm
     deps:
@@ -294,13 +298,13 @@ stages:
       size: 2724
     - path: results/fig4_tool_panels.png
       hash: md5
-      md5: b77e473622458cf5337290ca8636c0b9
-      size: 619580
+      md5: 6504f7a173bb7fa3c4f4b9be90b7f8f2
+      size: 619568
     - path: results/leuven_input_datasets.png
       hash: md5
       md5: 232aaea7a41489785c19d69c04fa8efb
       size: 2009314
     - path: results/leuven_results.csv
       hash: md5
-      md5: 7af2590dcb8d1edbad99c0009ed14298
+      md5: 463e0ec3a627be5b47f18e06d5d09898
       size: 4995

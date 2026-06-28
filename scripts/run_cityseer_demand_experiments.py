@@ -154,18 +154,9 @@ for exp in experiments:
         best_model_nodes_gdf = res_nodes
         best_model_radius = exp["radius"]
 
-# Append to results file
-if os.path.exists(RESULTS_FILE):
-    try:
-        df_existing = pd.read_csv(RESULTS_FILE)
-    except pd.errors.EmptyDataError:
-        df_existing = pd.DataFrame(columns=["tool", "variant", "r_squared", "pearson_r", "spearman_r", "compute_time_s", "n_matched", "n_obs", "peak_memory_mb", "segments_per_sec"])
-    # Filter out any old cityseer_demand rows to prevent duplicates
-    df_existing = df_existing[df_existing["tool"] != "cityseer_demand"]
-    df_new = pd.concat([df_existing, pd.DataFrame(new_rows)], ignore_index=True)
-else:
-    df_new = pd.DataFrame(new_rows)
-df_new.to_csv(RESULTS_FILE, index=False)
+# Append to results file using merge helper
+from scripts.merge_results import merge_to_csv
+merge_to_csv("cityseer_demand", pd.DataFrame(new_rows), RESULTS_FILE)
 print(f"\nSaved results to {RESULTS_FILE}")
 
 # Create Leaflet interactive map for the best-performing model
