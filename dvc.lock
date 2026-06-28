@@ -183,8 +183,8 @@ stages:
     deps:
     - path: results/cityseer_demand_best_predictions.csv
       hash: md5
-      md5: 04a1c6f6dd74620a035db61e908832a9
-      size: 706
+      md5: 380811efefa3108dee348ff970a80bbd
+      size: 710
     - path: results/madina_worldpop_best_predictions.csv
       hash: md5
       md5: d5fb8834122553b30d1dc9780283d1b2
@@ -234,8 +234,8 @@ stages:
       size: 6966
     - path: scripts/bench_sdna.py
       hash: md5
-      md5: 5bb5ea62c081eda82ba529f5c9806957
-      size: 8252
+      md5: 896c65e4040315b4fb8446383c5555ba
+      size: 8914
     - path: scripts/config.py
       hash: md5
       md5: 2043848db54d156cccece7025547291e
@@ -255,20 +255,20 @@ stages:
     outs:
     - path: leuven-map-cityseer-demand.html
       hash: md5
-      md5: 41943903b6322ce3f84aab34637eaeeb
-      size: 5575159
+      md5: 577895b29665bc410c2ea82bbfa9696f
+      size: 5575361
     - path: leuven-map.html
       hash: md5
       md5: 714c2e14af0856cb35afde5b79fdd87c
       size: 2466202
     - path: results/cityseer_demand_best_predictions.csv
       hash: md5
-      md5: 04a1c6f6dd74620a035db61e908832a9
-      size: 706
+      md5: 380811efefa3108dee348ff970a80bbd
+      size: 710
     - path: results/leuven_results.csv
       hash: md5
-      md5: 37406636bc63799ac0754c9b38610ea2
-      size: 3209
+      md5: 7af2590dcb8d1edbad99c0009ed14298
+      size: 4995
     - path: results/madina_worldpop_best_predictions.csv
       hash: md5
       md5: d5fb8834122553b30d1dc9780283d1b2
@@ -279,8 +279,8 @@ stages:
       size: 514
     - path: results/sdna_results.csv
       hash: md5
-      md5: 9532b7c2566a69f98acffcb6d678ef36
-      size: 1251
+      md5: aa4fd1a9306101b28359247bd6609055
+      size: 1824
   render_report:
     cmd: quarto render README.qmd --to gfm
     deps:
@@ -294,13 +294,13 @@ stages:
       size: 2724
     - path: results/fig4_tool_panels.png
       hash: md5
-      md5: 2f4880bc7d3e20ab864806c4f8cdaf8e
-      size: 619169
+      md5: b77e473622458cf5337290ca8636c0b9
+      size: 619580
     - path: results/leuven_input_datasets.png
       hash: md5
       md5: 232aaea7a41489785c19d69c04fa8efb
       size: 2009314
     - path: results/leuven_results.csv
       hash: md5
-      md5: 37406636bc63799ac0754c9b38610ea2
-      size: 3209
+      md5: 7af2590dcb8d1edbad99c0009ed14298
+      size: 4995
