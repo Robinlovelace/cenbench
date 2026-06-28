@@ -295,8 +295,8 @@ stages:
     deps:
     - path: README.qmd
       hash: md5
-      md5: dbd7a2fc5e5855accb08569e437e2565
-      size: 18090
+      md5: cfad3a0be98234c78c2f1cd0bbc81d87
+      size: 17971
     - path: appendix-other-tools.qmd
       hash: md5
       md5: 74ba1619c850d2a4cc392ceb039199ce
