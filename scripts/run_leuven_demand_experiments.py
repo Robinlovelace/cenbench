@@ -103,8 +103,22 @@ def run_experiment(edges_utm, origins_utm, destinations_utm, tel_utm, params, na
         
     elapsed = time.time() - t0
     
-    # Match edge results to Telraam sensors
-    edge_centroids = np.array([(g.x, g.y) for g in edge_gdf.geometry.centroid])
+    # Identify and filter stubs (degree-1 nodes, edges < 15m)
+    # This prevents sensors from snapping to dead-end stubs with zero predicted flow
+    deg_z = dict(z.network.light_graph.degree())
+    is_stub_z = []
+    for idx, row in edge_gdf.iterrows():
+        u_deg = deg_z.get(row['start'], 0)
+        v_deg = deg_z.get(row['end'], 0)
+        if u_deg <= 1 or v_deg <= 1 or row['length'] < 15.0:
+            is_stub_z.append(True)
+        else:
+            is_stub_z.append(False)
+    edge_gdf['is_stub'] = is_stub_z
+    non_stub_gdf = edge_gdf[~edge_gdf['is_stub']].copy()
+    
+    # Match edge results to Telraam sensors (using non-stub edges only)
+    edge_centroids = np.array([(g.x, g.y) for g in non_stub_gdf.geometry.centroid])
     tel_xy = np.array([(g.x, g.y) for g in tel_utm.geometry])
     
     tree = cKDTree(edge_centroids)
@@ -112,8 +126,10 @@ def run_experiment(edges_utm, origins_utm, destinations_utm, tel_utm, params, na
     matched = dists <= MATCH_DIST
     nm = int(np.sum(matched))
     
+    # Get predicted values from non_stub edges, matching back to original
+    matched_idxs = non_stub_gdf.iloc[idxs[matched]].index
     obs = tel_utm.iloc[matched]['avg_daily_pedestrians'].values.astype(float)
-    pred = edge_gdf.iloc[idxs[matched]]['betweenness'].values.astype(float)
+    pred = edge_gdf.loc[matched_idxs, 'betweenness'].values.astype(float)
     
     m = compute_metrics(obs, pred)
     peak_mem = mem_now_mb()
@@ -147,18 +163,23 @@ def main():
     print(f"  POI attractors: {len(destinations)}")
     
     # ── 10 experiments to test ──
+    # Radius sweep with stub-filtered matching (restored from 3f3e3d9)
     experiments = [
-        # Optimized local configurations
-        {"name": "wp_r1500_det100_all_beta002", "search_radius": 1500, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.002},
-        {"name": "wp_r1400_det100_all_beta002", "search_radius": 1400, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.002},
-        {"name": "wp_r1600_det100_all_beta002", "search_radius": 1600, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.002},
-        {"name": "wp_r1200_det100_all_beta0015", "search_radius": 1200, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.0015},
-        {"name": "wp_r1500_det100_all_beta001", "search_radius": 1500, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.001},
-        {"name": "wp_r2000_det100_all_beta001", "search_radius": 2000, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.001},
-        {"name": "wp_r2500_det100_all_beta001", "search_radius": 2500, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.001},
-        {"name": "wp_r3000_det100_all_beta001", "search_radius": 3000, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.001},
-        {"name": "wp_r3000_det100_closest_beta001", "search_radius": 3000, "detour_ratio": 1.0, "closest_destination": True, "decay": True, "beta": 0.001},
-        {"name": "wp_r3000_det100_all_beta002", "search_radius": 3000, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.002},
+        # Radius sweep at beta=0.002 (best decay from original high-R² results)
+        {"name": "wp_r800_beta002_all",   "search_radius": 800,  "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.002},
+        {"name": "wp_r1200_beta002_all",  "search_radius": 1200, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.002},
+        {"name": "wp_r1600_beta002_all",  "search_radius": 1600, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.002},
+        {"name": "wp_r2000_beta002_all",  "search_radius": 2000, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.002},
+        # Beta sensitivity around best radius (1200-1600m)
+        {"name": "wp_r1200_beta001_all",  "search_radius": 1200, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.001},
+        {"name": "wp_r1600_beta001_all",  "search_radius": 1600, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.001},
+        # Closest-destination baseline (expects weak fit)
+        {"name": "wp_r2000_beta002_closest", "search_radius": 2000, "detour_ratio": 1.0, "closest_destination": True,  "decay": True, "beta": 0.002},
+        # No-decay baseline
+        {"name": "wp_r1200_beta002_nodecay", "search_radius": 1200, "detour_ratio": 1.0, "closest_destination": False, "decay": False, "beta": 0.002},
+        # Beta sensitivity at larger radius
+        # Extended range
+        {"name": "wp_r3000_beta002_all",  "search_radius": 3000, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.002},
     ]
     
     new_results = []

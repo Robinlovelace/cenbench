@@ -81,10 +81,10 @@ KEEP_VARIANTS = {
     "cityseer": ["shortest_200m", "shortest_800m", "shortest_3200m"],
     "madina": ["degree", "btw_weighted_200"],
     "madina_worldpop": [
-        "wp_r1500_det100_all_beta002",
-        "wp_r1400_det100_all_beta002",
-        "wp_r1600_det100_all_beta002",
-        "wp_r1200_det100_all_beta0015",
+        "wp_r3000_beta002_all",
+        "wp_r2000_beta002_all",
+        "wp_r1600_beta002_all",
+        "wp_r1200_beta002_all",
     ],
     "cityseer_demand": [
         "cs_demand_r800_beta002_all",
@@ -184,7 +184,7 @@ plt.close()
 
 ## Abstract
 
-This study benchmarks six tools for pedestrian flow modelling using Telraam sensor data in Leuven, Belgium. cityseer_demand gravity models achieve the strongest predictive performance (R² = 0.543), followed by sDNA+ Mean Angular Distance at 400m (R² = 0.353) and madina degree centrality (R² = 0.145). sDNA+ with OpenMP multi-threading completes analyses in seconds rather than minutes (11.7s for 19K edges at 400m vs 979s previously single-threaded at 800m).
+This study benchmarks seven tools for pedestrian flow modelling using Telraam sensor data in Leuven, Belgium. madina_worldpop gravity models achieve the strongest predictive performance (R² up to 0.704), followed by cityseer_demand (R²=0.543) and sDNA+ Mean Angular Distance at 800m (R²=0.468). sDNA+ with OpenMP multi-threading completes analyses in seconds rather than minutes (59.8s for 19K edges at 800m vs 979s previously single-threaded).
 
 ## Introduction
 
@@ -276,10 +276,10 @@ WorldPop population data (100m grid, total population 171,574) serves as origin 
 
 | Variant | Tool | Configuration |
 |---------|------|---------------|
-| wp_r800_beta002_all | madina_worldpop | 800m radius, β=0.02, all attractors |
-| wp_r1200_beta002_all | madina_worldpop | 1200m radius, β=0.02, all attractors |
-| wp_r1600_beta002_all | madina_worldpop | 1600m radius, β=0.02, all attractors |
-| wp_r2000_beta002_all | madina_worldpop | 2000m radius, β=0.02, all attractors |
+| wp_r800_beta002_all | madina_worldpop | 800m radius, β=0.002, all attractors |
+| wp_r1200_beta002_all | madina_worldpop | 1200m radius, β=0.002, all attractors |
+| wp_r1600_beta002_all | madina_worldpop | 1600m radius, β=0.002, all attractors |
+| wp_r2000_beta002_all | madina_worldpop | 2000m radius, β=0.002, all attractors |
 | cs_demand_r800_beta002_all | cityseer_demand | 800m radius, β=0.02, all attractors |
 | cs_demand_r1200_beta002_all | cityseer_demand | 1200m radius, β=0.02, all attractors |
 
