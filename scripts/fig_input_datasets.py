@@ -62,7 +62,7 @@ axes[2].set_axis_off()
 # (d) POI attractors
 edges_wm.plot(ax=axes[3], linewidth=0.3, color='gray', alpha=0.4)
 cats = att['category'].value_counts()
-colors = plt.cm.get_cmap('Set2', len(cats)).colors
+colors = matplotlib.colormaps['Set2'](np.linspace(0, 1, len(cats)))
 for (cat, _), color in zip(cats.items(), colors):
     subset = att_wm[att_wm['category'] == cat]
     axes[3].scatter(subset.geometry.x, subset.geometry.y, s=25, c=[color],

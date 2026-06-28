@@ -43,11 +43,30 @@ m = e_match
 print(f"Sensors: {len(tel)}, matched: {int(m.sum())}")
 
 # ── Define top 4 tools for comparison ──
+# ── Load results CSVs ──
+results_df = pd.read_csv("results/leuven_results.csv")
+if os.path.exists("results/sdna_results.csv"):
+    sdna_results = pd.read_csv("results/sdna_results.csv")
+    results_df = pd.concat([results_df, sdna_results], ignore_index=True)
+
+# Find best variant for each tool
+def get_best_variant(tool_name, fallback_var, fallback_r2, fallback_r):
+    sub = results_df[results_df["tool"] == tool_name].dropna(subset=["r_squared"])
+    if len(sub) > 0:
+        best_row = sub.sort_values("r_squared", ascending=False).iloc[0]
+        return best_row["variant"], float(best_row["r_squared"]), float(best_row["pearson_r"])
+    return fallback_var, fallback_r2, fallback_r
+
+madina_wp_var, madina_wp_r2, madina_wp_r = get_best_variant("madina_worldpop", "wp_r2000_det100_all_beta001", 0.6763, 0.8224)
+cityseer_dem_var, cityseer_dem_r2, cityseer_dem_r = get_best_variant("cityseer_demand", "cs_demand_r800_beta002_all", 0.5432, 0.7370)
+sdna_var, sdna_r2, sdna_r = get_best_variant("sdna", "MAD_angular_400m", 0.3533, 0.5944)
+madina_var, madina_r2, madina_r = get_best_variant("madina", "degree", 0.1453, -0.3812)
+
 TOOLS = [
-    ("madina_worldpop", "wp_r2000_beta002_all",  0.6763,  0.8224, "#f39c12", "results/madina_worldpop_best_predictions.csv"),
-    ("cityseer_demand",  "cs_demand_r800_beta002_all", 0.5432,  0.7370, "#9b59b6", "results/cityseer_demand_best_predictions.csv"),
-    ("sdna",             "MAD_angular_800m",          0.4676,  0.6838, "#1abc9c", "results/sdna_best_predictions.csv"),
-    ("madina",           "degree",                    0.1453, -0.3812, "#e74c3c", None),
+    ("madina_worldpop", madina_wp_var, madina_wp_r2, madina_wp_r, "#f39c12", "results/madina_worldpop_best_predictions.csv"),
+    ("cityseer_demand", cityseer_dem_var, cityseer_dem_r2, cityseer_dem_r, "#9b59b6", "results/cityseer_demand_best_predictions.csv"),
+    ("sdna",            sdna_var,        sdna_r2,        sdna_r,        "#1abc9c", "results/sdna_best_predictions.csv"),
+    ("madina",          madina_var,      madina_r2,      madina_r,      "#e74c3c", None),
 ]
 
 # ── Figure setup ──

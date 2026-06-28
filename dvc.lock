@@ -199,17 +199,17 @@ stages:
       size: 814
     - path: scripts/fig_input_datasets.py
       hash: md5
-      md5: 1abf643bbd4f3ec8ba9e0322499fafc3
-      size: 3507
+      md5: 90e27e1667c8cdac2e37684d681cabab
+      size: 3524
     - path: scripts/fig_option_a.py
       hash: md5
-      md5: 9e4b1e453d48e4449f8b853ffda12f13
-      size: 6436
+      md5: 8cd21640fb0c36b4cc3eb7a0b921d6c9
+      size: 7577
     outs:
     - path: results/fig4_tool_panels.png
       hash: md5
-      md5: 4e381c75654cc8f14087e529caec9446
-      size: 1107264
+      md5: 624ec447f8dd707dbd0c687564efe598
+      size: 1108302
     - path: results/leuven_input_datasets.png
       hash: md5
       md5: c38314c0f506692077884cf0d9134aa9
@@ -303,8 +303,8 @@ stages:
       size: 2724
     - path: results/fig4_tool_panels.png
       hash: md5
-      md5: 4e381c75654cc8f14087e529caec9446
-      size: 1107264
+      md5: 624ec447f8dd707dbd0c687564efe598
+      size: 1108302
     - path: results/leuven_input_datasets.png
       hash: md5
       md5: c38314c0f506692077884cf0d9134aa9
