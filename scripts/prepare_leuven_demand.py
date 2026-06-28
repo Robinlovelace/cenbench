@@ -14,6 +14,8 @@ import rasterio
 from rasterio.windows import from_bounds
 from shapely.geometry import Point
 
+from scripts.config import get_path
+
 DATA_DIR = "data"
 CACHE_DIR = "cache"
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -50,7 +52,7 @@ def download_worldpop():
 
 def process_origins(tif_path):
     print("Processing WorldPop population origins...")
-    output_path = os.path.join(DATA_DIR, "leuven_worldpop_origins.geojson")
+    output_path = get_path(os.path.join(DATA_DIR, "leuven_worldpop_origins.geojson"))
     
     # Open raster and crop to bounding box
     with rasterio.open(tif_path) as src:
@@ -94,7 +96,7 @@ def process_origins(tif_path):
 
 def fetch_attractors():
     print("Fetching Leuven trip attractors from OSM Overpass API...")
-    output_path = os.path.join(DATA_DIR, "leuven_attractors.geojson")
+    output_path = get_path(os.path.join(DATA_DIR, "leuven_attractors.geojson"))
     
     # Overpass query to find key attractors
     overpass_query = f"""
@@ -195,7 +197,7 @@ def fetch_attractors():
     print(f"Saved {len(gdf)} attractors to {output_path}")
 
 def create_synthetic_attractors():
-    output_path = os.path.join(DATA_DIR, "leuven_attractors.geojson")
+    output_path = get_path(os.path.join(DATA_DIR, "leuven_attractors.geojson"))
     # Leuven train station (4.715, 50.881)
     # KU Leuven city center (4.700, 50.878)
     # UZ Leuven Hospital (4.678, 50.887)
@@ -220,6 +222,15 @@ def create_synthetic_attractors():
     print(f"Saved {len(gdf)} synthetic fallback attractors to {output_path}")
 
 if __name__ == "__main__":
+    from scripts.config import TEST_MODE
+    if TEST_MODE:
+        import shutil
+        print("TEST_MODE is active: copying pre-clipped test demand files...")
+        shutil.copy("data/test_leuven_worldpop_origins.geojson", "data/leuven_worldpop_origins.geojson")
+        shutil.copy("data/test_leuven_attractors.geojson", "data/leuven_attractors.geojson")
+        print("Done copying test demand files.")
+        sys.exit(0)
+        
     tif_path = download_worldpop()
     process_origins(tif_path)
     fetch_attractors()

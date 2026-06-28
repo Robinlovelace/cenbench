@@ -18,6 +18,7 @@ import psutil
 # Add local madina submodule to system path to override the site-package
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "madina", "src"))
 from madina.zonal import Zonal
+from scripts.config import get_path
 from madina.una import parallel_betweenness
 
 warnings.filterwarnings('ignore')
@@ -136,11 +137,11 @@ def run_experiment(edges_utm, origins_utm, destinations_utm, tel_utm, params, na
 
 def main():
     print("Loading data layers...")
-    edges = gpd.read_file(os.path.join(DATA_DIR, 'leuven_walk_edges.gpkg')).to_crs(CRS_UTM)
-    telr = gpd.read_file(os.path.join(DATA_DIR, 'leuven_telraam_pedestrians_4326.geojson')).to_crs(CRS_UTM)
+    edges = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_walk_edges.gpkg'))).to_crs(CRS_UTM)
+    telr = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_telraam_pedestrians_4326.geojson'))).to_crs(CRS_UTM)
     
-    origins = gpd.read_file(os.path.join(DATA_DIR, 'leuven_worldpop_origins.geojson')).to_crs(CRS_UTM)
-    destinations = gpd.read_file(os.path.join(DATA_DIR, 'leuven_attractors.geojson')).to_crs(CRS_UTM)
+    origins = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_worldpop_origins.geojson'))).to_crs(CRS_UTM)
+    destinations = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_attractors.geojson'))).to_crs(CRS_UTM)
     
     print(f"  Edges: {len(edges)}")
     print(f"  Sensors: {len(telr)}")
@@ -175,7 +176,10 @@ def main():
     # Save results to CSV
     df_new = pd.DataFrame(new_results)
     if os.path.exists(RESULTS_FILE):
-        df_old = pd.read_csv(RESULTS_FILE)
+        try:
+            df_old = pd.read_csv(RESULTS_FILE)
+        except pd.errors.EmptyDataError:
+            df_old = pd.DataFrame(columns=["tool", "variant", "r_squared", "pearson_r", "spearman_r", "compute_time_s", "n_matched", "n_obs", "peak_memory_mb", "segments_per_sec"])
         # Filter out old madina_worldpop variants to avoid duplicates
         df_old = df_old[df_old["tool"] != "madina_worldpop"]
         df_all = pd.concat([df_old, df_new], ignore_index=True)

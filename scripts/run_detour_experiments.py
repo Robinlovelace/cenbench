@@ -18,6 +18,8 @@ sys.path.insert(0, os.path.join(workspace, "madina", "src"))
 from madina.zonal import Zonal
 from madina.una import parallel_betweenness
 
+from scripts.config import get_path
+
 DATA_DIR = os.path.join(workspace, "data")
 CRS_UTM = 32631
 MATCH_DIST = 200
@@ -617,14 +619,14 @@ def run_detour_simulation(edges, origins, destinations, telr, tel_xy, detour_rat
 
 def main():
     print("Loading data layers...", flush=True)
-    edges = gpd.read_file(os.path.join(DATA_DIR, 'leuven_walk_edges.gpkg')).to_crs(CRS_UTM)
-    telr = gpd.read_file(os.path.join(DATA_DIR, 'leuven_telraam_pedestrians_4326.geojson')).to_crs(CRS_UTM)
+    edges = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_walk_edges.gpkg'))).to_crs(CRS_UTM)
+    telr = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_telraam_pedestrians_4326.geojson'))).to_crs(CRS_UTM)
     tel_xy = np.array([(g.x, g.y) for g in telr.geometry])
     
-    origins = gpd.read_file(os.path.join(DATA_DIR, 'leuven_worldpop_origins.geojson')).to_crs(CRS_UTM)
-    destinations = gpd.read_file(os.path.join(DATA_DIR, 'leuven_attractors.geojson')).to_crs(CRS_UTM)
+    origins = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_worldpop_origins.geojson'))).to_crs(CRS_UTM)
+    destinations = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_attractors.geojson'))).to_crs(CRS_UTM)
     
-    detour_ratios = [1.00, 1.05, 1.10, 1.15, 1.20]
+    detour_ratios = [1.00]
     results_r2 = []
     
     for dr in detour_ratios:

@@ -7,6 +7,8 @@ import pandas as pd
 import geopandas as gpd
 from scipy.spatial import cKDTree
 
+from scripts.config import get_path
+
 workspace = "/home/robin/github/robinlovelace/cenbench"
 sys.path.insert(0, os.path.join(workspace, "madina", "src"))
 from madina.zonal import Zonal
@@ -19,16 +21,16 @@ MATCH_DIST = 200
 
 def run_simulation_and_generate_html():
     print("1. Loading validation sensors...", flush=True)
-    telr = gpd.read_file(os.path.join(DATA_DIR, 'leuven_telraam_pedestrians_4326.geojson')).to_crs(CRS_UTM)
+    telr = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_telraam_pedestrians_4326.geojson'))).to_crs(CRS_UTM)
     tel_xy = np.array([(g.x, g.y) for g in telr.geometry])
     tel_ped = telr['avg_daily_pedestrians'].values.astype(float)
     
     print("2. Loading walk network edges...", flush=True)
-    edges = gpd.read_file(os.path.join(DATA_DIR, 'leuven_walk_edges.gpkg')).to_crs(CRS_UTM)
+    edges = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_walk_edges.gpkg'))).to_crs(CRS_UTM)
     
     print("3. Loading demand data...", flush=True)
-    origins = gpd.read_file(os.path.join(DATA_DIR, 'leuven_worldpop_origins.geojson')).to_crs(CRS_UTM)
-    destinations = gpd.read_file(os.path.join(DATA_DIR, 'leuven_attractors.geojson')).to_crs(CRS_UTM)
+    origins = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_worldpop_origins.geojson'))).to_crs(CRS_UTM)
+    destinations = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_attractors.geojson'))).to_crs(CRS_UTM)
     
     print("4. Running best gravity simulation (wp_r2000_beta002_all)...", flush=True)
     z = Zonal()

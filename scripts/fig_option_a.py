@@ -12,6 +12,8 @@ from scipy.spatial import cKDTree
 from pyproj import Transformer
 warnings.filterwarnings("ignore")
 
+from scripts.config import get_path
+
 DATA_DIR = "data"
 RESULTS_DIR = "results"
 CRS_UTM = 32631
@@ -19,7 +21,7 @@ MATCH_DIST = 200
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
 # ── Load sensors ──
-with open(f"{DATA_DIR}/leuven_telraam_pedestrians.geojson") as f:
+with open(get_path(f"{DATA_DIR}/leuven_telraam_pedestrians.geojson")) as f:
     sd = json.load(f)
 t = Transformer.from_crs("EPSG:31370", "EPSG:4326", always_xy=True)
 feats = []
@@ -33,7 +35,7 @@ tel_xy = np.array([(g.x, g.y) for g in tel.geometry])
 tel_ped = tel["avg_daily_pedestrians"].values.astype(float)
 
 # ── Network edge matching ──
-edges = gpd.read_file(f"{DATA_DIR}/leuven_walk_edges.gpkg").to_crs(CRS_UTM)
+edges = gpd.read_file(get_path(f"{DATA_DIR}/leuven_walk_edges.gpkg")).to_crs(CRS_UTM)
 ec = np.array([(g.x, g.y) for g in edges.geometry.centroid])
 e_d, e_i = cKDTree(ec).query(tel_xy)
 e_match = e_d <= MATCH_DIST

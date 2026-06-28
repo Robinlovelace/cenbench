@@ -14,6 +14,8 @@ warnings.filterwarnings('ignore')
 from cityseer.tools import io
 from cityseer.metrics import networks as cs_networks
 
+from scripts.config import get_path
+
 _process = psutil.Process()
 MATCH_DIST = 200
 DATA_DIR = "data"
@@ -22,7 +24,7 @@ os.makedirs(RESULTS_DIR, exist_ok=True)
 CRS_UTM = 32631
 
 # ── Sensors ──
-with open(f"{DATA_DIR}/leuven_telraam_pedestrians.geojson") as f:
+with open(get_path(f"{DATA_DIR}/leuven_telraam_pedestrians.geojson")) as f:
     sd = json.load(f)
 t = Transformer.from_crs("EPSG:31370", "EPSG:4326", always_xy=True)
 feats = []
@@ -37,7 +39,7 @@ tel_ped = tel["avg_daily_pedestrians"].values.astype(float)
 print(f"Sensors: {len(tel)}", flush=True)
 
 # ── Network ──
-edges = gpd.read_file(f"{DATA_DIR}/leuven_walk_edges.gpkg")
+edges = gpd.read_file(get_path(f"{DATA_DIR}/leuven_walk_edges.gpkg"))
 edges_u = edges.to_crs(CRS_UTM)
 print(f"Edges: {len(edges_u)}", flush=True)
 

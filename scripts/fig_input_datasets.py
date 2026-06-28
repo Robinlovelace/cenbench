@@ -8,14 +8,16 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
+from scripts.config import get_path
+
 data_dir = "data"
 
-edges = gpd.read_file(f"{data_dir}/leuven_walk_edges.gpkg")
-tel = gpd.read_file(f"{data_dir}/leuven_telraam_pedestrians_4326.geojson")
-nodes = gpd.read_file(f"{data_dir}/leuven_walk_nodes.gpkg")
-wp = gpd.read_file(f"{data_dir}/leuven_worldpop_origins.geojson")
-att = gpd.read_file(f"{data_dir}/leuven_attractors.geojson")
-seg = gpd.read_file(f"{data_dir}/leuven_telraam_segments.geojson")
+edges = gpd.read_file(get_path(f"{data_dir}/leuven_walk_edges.gpkg"))
+tel = gpd.read_file(get_path(f"{data_dir}/leuven_telraam_pedestrians_4326.geojson"))
+nodes = gpd.read_file(get_path(f"{data_dir}/leuven_walk_nodes.gpkg"))
+wp = gpd.read_file(get_path(f"{data_dir}/leuven_worldpop_origins.geojson"))
+att = gpd.read_file(get_path(f"{data_dir}/leuven_attractors.geojson"))
+seg = gpd.read_file(get_path(f"{data_dir}/leuven_telraam_segments.geojson"))
 
 edges_wm = edges.to_crs(3857)
 tel_wm = tel.to_crs(3857)

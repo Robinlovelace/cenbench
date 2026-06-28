@@ -15,6 +15,8 @@ sys.path.insert(0, os.path.join(workspace, "madina", "src"))
 from cityseer.tools import io
 from cityseer.metrics import networks as cs_networks
 
+from scripts.config import get_path
+
 DATA_DIR = os.path.join(workspace, "data")
 RESULTS_DIR = os.path.join(workspace, "results")
 RESULTS_FILE = os.path.join(RESULTS_DIR, "leuven_results.csv")
@@ -23,15 +25,15 @@ MATCH_DIST = 200
 
 # 1. Load Validation Data (Telraam Sensors)
 print("Loading validation sensors...")
-telr = gpd.read_file(os.path.join(DATA_DIR, 'leuven_telraam_pedestrians_4326.geojson')).to_crs(CRS_UTM)
+telr = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_telraam_pedestrians_4326.geojson'))).to_crs(CRS_UTM)
 tel_xy = np.array([(g.x, g.y) for g in telr.geometry])
 tel_ped = telr['avg_daily_pedestrians'].values.astype(float)
 
 # 2. Load Network Edges & Demands
 print("Loading walk network edges and demand datasets...")
-edges = gpd.read_file(os.path.join(DATA_DIR, 'leuven_walk_edges.gpkg')).to_crs(CRS_UTM)
-origins = gpd.read_file(os.path.join(DATA_DIR, 'leuven_worldpop_origins.geojson')).to_crs(CRS_UTM)
-destinations = gpd.read_file(os.path.join(DATA_DIR, 'leuven_attractors.geojson')).to_crs(CRS_UTM)
+edges = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_walk_edges.gpkg'))).to_crs(CRS_UTM)
+origins = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_worldpop_origins.geojson'))).to_crs(CRS_UTM)
+destinations = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_attractors.geojson'))).to_crs(CRS_UTM)
 
 # 3. Setup cityseer Primal Graph
 print("Building cityseer NetworkStructure...")
@@ -154,7 +156,10 @@ for exp in experiments:
 
 # Append to results file
 if os.path.exists(RESULTS_FILE):
-    df_existing = pd.read_csv(RESULTS_FILE)
+    try:
+        df_existing = pd.read_csv(RESULTS_FILE)
+    except pd.errors.EmptyDataError:
+        df_existing = pd.DataFrame(columns=["tool", "variant", "r_squared", "pearson_r", "spearman_r", "compute_time_s", "n_matched", "n_obs", "peak_memory_mb", "segments_per_sec"])
     # Filter out any old cityseer_demand rows to prevent duplicates
     df_existing = df_existing[df_existing["tool"] != "cityseer_demand"]
     df_new = pd.concat([df_existing, pd.DataFrame(new_rows)], ignore_index=True)
