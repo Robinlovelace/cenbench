@@ -15,8 +15,6 @@ from scipy import stats
 from scipy.spatial import cKDTree
 import psutil
 
-# Add local madina submodule to system path to override the site-package
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "madina", "src"))
 from madina.zonal import Zonal
 from scripts.config import get_path
 from madina.una import parallel_betweenness
