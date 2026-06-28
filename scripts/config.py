@@ -1,7 +1,7 @@
 import os
 
 # ONE-LINE SWITCH: Set to True for rapid testing (using cropped 5,900-edge test datasets), False for full runs
-TEST_MODE = True
+TEST_MODE = False
 
 def get_path(filename):
     """Resolve correct path depending on whether TEST_MODE is active."""
