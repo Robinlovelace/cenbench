@@ -14,15 +14,13 @@ stages:
       PYTHONPATH=. .venv/bin/python scripts/run_cityseer_demand_experiments.py &&
       PYTHONPATH=. .venv/bin/python scripts/run_leuven_demand_experiments.py &&
       PYTHONPATH=. .venv/bin/python scripts/bench_sdna.py &&
-      PYTHONPATH=. .venv/bin/python scripts/generate_interactive_map.py &&
-      PYTHONPATH=. .venv/bin/python scripts/run_detour_experiments.py
+      PYTHONPATH=. .venv/bin/python scripts/generate_interactive_map.py
     deps:
       - scripts/bench_leuven.py
       - scripts/run_cityseer_demand_experiments.py
       - scripts/run_leuven_demand_experiments.py
       - scripts/bench_sdna.py
       - scripts/generate_interactive_map.py
-      - scripts/run_detour_experiments.py
       - scripts/config.py
       - data/leuven_walk_edges.gpkg
       - data/leuven_telraam_pedestrians_4326.geojson
@@ -36,7 +34,6 @@ stages:
       - results/sdna_results.csv
       - leuven-map-cityseer-demand.html
       - leuven-map.html
-      - leuven-map-detour-1.00.html
 
   generate_plots:
     cmd: PYTHONPATH=. .venv/bin/python scripts/fig_input_datasets.py && PYTHONPATH=. .venv/bin/python scripts/fig_option_a.py

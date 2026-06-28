@@ -33,10 +33,8 @@ def compute_metrics(observed, predicted):
     if n < 3 or np.all(pred == pred[0]):
         return {"n": n, "r_squared": np.nan, "pearson_r": np.nan, "spearman_r": np.nan}
     
-    # Calculate R-squared
-    ss_res = np.sum((obs - pred) ** 2)
-    ss_tot = np.sum((obs - np.mean(obs)) ** 2)
-    r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0
+    # Calculate R-squared as squared correlation (aligned with other scripts)
+    r2 = stats.linregress(pred, obs).rvalue ** 2
     
     # Pearson and Spearman
     pr, _ = stats.pearsonr(obs, pred)
