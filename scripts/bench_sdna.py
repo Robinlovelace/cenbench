@@ -119,8 +119,10 @@ try:
     configs = [
         ("angular_200m", "radii=200;metric=ANGULAR;nohull"),
         ("angular_400m", "radii=400;metric=ANGULAR;nohull"),
+        ("angular_800m", "radii=800;metric=ANGULAR;nohull"),
         ("euclidean_200m", "radii=200;metric=EUCLIDEAN;nohull"),
         ("euclidean_400m", "radii=400;metric=EUCLIDEAN;nohull"),
+        ("euclidean_800m", "radii=800;metric=EUCLIDEAN;nohull"),
     ]
 
     for variant, config_str in configs:
