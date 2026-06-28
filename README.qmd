@@ -7,6 +7,8 @@ format:
   gfm:
     toc: true
     toc-depth: 3
+number-sections: true
+number-depth: 3
 execute:
   warning: false
   message: false
@@ -184,7 +186,7 @@ plt.close()
 
 This study benchmarks six tools for pedestrian flow modelling using Telraam sensor data in Leuven, Belgium. cityseer_demand gravity models achieve the strongest predictive performance (R² = 0.543), followed by sDNA+ Mean Angular Distance at 400m (R² = 0.353) and madina degree centrality (R² = 0.145). sDNA+ with OpenMP multi-threading completes analyses in seconds rather than minutes (11.7s for 19K edges at 400m vs 979s previously single-threaded at 800m).
 
-## 1. Introduction
+## Introduction
 
 Pedestrian flow modelling is central to walkability analysis, transport planning, and urban design. Three approaches exist:
 
@@ -198,11 +200,11 @@ Pedestrian flow modelling is central to walkability analysis, transport planning
 
 **sfnetworks** [@vandermeer2024sfnetworks] provides a tidyverse-compatible R interface for spatial network analysis.
 
-### 1.1 Related Work
+### Related Work
 
 Prior benchmarks in the `criticalissues` repository tested cityseer, sfnetworks, and dodgr against Leeds AADT counts, finding best R² ~0.46 for cityseer. This study extends that work focusing on **pedestrian** modelling with **Telraam** data.
 
-### 1.2 Input Datasets
+### Input Datasets
 
 Six datasets underpin the Leuven benchmark, all sourced from open data:
 
@@ -219,7 +221,9 @@ le_att = gpd.read_file("data/leuven_attractors.geojson")
 
 ```{python}
 #| echo: false
-#| tbl-cap: "Leuven input datasets"
+#| label: tbl-datasets
+#| tbl-cap: "Leuven input datasets sourced from open data."
+#| output: asis
 lines = [
 "| Dataset | Description | Rows | Key variables | Source |",
 "|---------|-------------|------|---------------|--------|",
@@ -230,20 +234,20 @@ f"| Telraam segments | Road segments with monitoring | {len(le_seg):,} | `oidn` 
 f"| WorldPop origins | Population grid cells (100m) | {len(le_wp):,} | `population` | WorldPop |",
 f"| POI attractors | Destinations by category | {len(le_att):,} | `name`, `category`, `attractor_weight` | OSM |",
 ]
-print("\\n".join(lines))
+print("\n".join(lines))
 ```
 
 The Leuven walk network has 19,118 edges. The 38 Telraam sensors report an average of 286 pedestrians per day (max 4,377), providing a substantial validation signal.
 
 WorldPop population data (100m grid, total population 171,574) serves as origin weights for gravity models. POI attractors (800 points across 7 categories including universities, dining, shops, transit stations) provide destination weights.
 
-![Leuven input datasets: (a) walk network & monitored road segments, (b) Telraam sensor locations with daily average pedestrian counts, (c) WorldPop population grid (origins), (d) POI attractors by category (destinations)](results/leuven_input_datasets.png)
+![Leuven input datasets: (a) walk network & monitored road segments, (b) Telraam sensor locations with daily average pedestrian counts, (c) WorldPop population grid (origins), (d) POI attractors by category (destinations)](results/leuven_input_datasets.png){#fig-input-datasets}
 
-**Figure 2** visualises these input datasets. The Telraam sensor distribution shows high pedestrian volumes concentrated in the city centre (250–4,377/day) with moderate volumes on arterial routes and suburban streets (50–250/day).
+@fig-input-datasets visualises these input datasets. The Telraam sensor distribution shows high pedestrian volumes concentrated in the city centre (250–4,377/day) with moderate volumes on arterial routes and suburban streets (50–250/day).
 
-## 2. Methods
+## Methods
 
-### 2.1 Benchmark Design
+### Benchmark Design
 
 **cityseer experiments**:
 
@@ -255,6 +259,8 @@ WorldPop population data (100m grid, total population 171,574) serves as origin 
 | shortest_1600m | node_centrality_shortest | 1600m | 20-min walk radius |
 | shortest_3200m | node_centrality_shortest | 3200m | Extended walking range |
 
+: Cityseer benchmark design configurations. {#tbl-cityseer-design}
+
 **madina experiments** (NetworkX-based):
 
 | Variant | Method | Description |
@@ -263,6 +269,8 @@ WorldPop population data (100m grid, total population 171,574) serves as origin 
 | btw_weighted_100 | Edge betweenness (length-weighted) | 100-node OD sample |
 | btw_weighted_200 | Edge betweenness (length-weighted) | 200-node OD sample |
 | btw_weighted_500 | Edge betweenness (length-weighted) | 500-node OD sample |
+
+: Madina centrality benchmark design configurations. {#tbl-madina-design}
 
 **Gravity / demand models**:
 
@@ -275,7 +283,9 @@ WorldPop population data (100m grid, total population 171,574) serves as origin 
 | cs_demand_r800_beta002_all | cityseer_demand | 800m radius, β=0.02, all attractors |
 | cs_demand_r1200_beta002_all | cityseer_demand | 1200m radius, β=0.02, all attractors |
 
-### 2.2 Metrics
+: Gravity/demand model configurations. {#tbl-gravity-design}
+
+### Metrics
 
 - **R²**: Coefficient of determination
 - **Pearson r**: Correlation coefficient
@@ -285,11 +295,11 @@ WorldPop population data (100m grid, total population 171,574) serves as origin 
 - **Segments/sec**: Network edges processed per second
 - **n_matched**: Number of matched sensor-model pairs
 
-## 3. Results
+## Results
 
-### 3.1 Benchmark Barplot
+### Benchmark Barplot
 
-![Leuven R² comparison across all methods — centrality measures (left) and gravity/demand models (right)](results/fig1_barplot.png)
+![Leuven R² comparison across pure centrality methods (cityseer, madina, sDNA+)](results/fig1_barplot.png){#fig-barplot-centrality}
 
 ```{python}
 #| include: false
@@ -319,74 +329,67 @@ fig.savefig("results/fig_gravity_barplot.png", dpi=150, bbox_inches='tight')
 plt.close()
 ```
 
-### 3.2 Centrality Methods
+### Centrality Methods
 
-#### 3.2.1 cityseer
+#### cityseer
 
 ```{python}
 #| echo: false
+#| label: tbl-cityseer-results
+#| tbl-cap: "Cityseer centrality results."
+#| output: asis
 display(Markdown(results_table(cs_df)))
 ```
 
-#### 3.2.2 madina
+#### madina
 
 ```{python}
 #| echo: false
+#| label: tbl-madina-results
+#| tbl-cap: "Madina centrality results."
+#| output: asis
 display(Markdown(results_table(md_df)))
 ```
 
-#### 3.2.3 sDNA+
+#### sDNA+
 
 ```{python}
 #| echo: false
+#| label: tbl-sdna-results
+#| tbl-cap: "sDNA+ centrality results."
+#| output: asis
 sdna_df = tool_results(df, "sdna")
 if len(sdna_df) > 0:
     display(Markdown(results_table(sdna_df)))
 ```
 
-### 3.3 Gravity / Demand Models
+### Gravity / Demand Models
 
-![Gravity and demand model R² comparison](results/fig_gravity_barplot.png)
+![Gravity and demand model R² comparison](results/fig_gravity_barplot.png){#fig-barplot-gravity}
 
-**Figure X** compares gravity-based pedestrian flow models incorporating WorldPop population origins and OSM POI attractor destinations with exponential distance decay.
+@fig-barplot-gravity compares gravity-based pedestrian flow models incorporating WorldPop population origins and OSM POI attractor destinations with exponential distance decay.
 
 ```{python}
 #| echo: false
+#| label: tbl-gravity-madina-results
+#| tbl-cap: "Madina WorldPop gravity results."
+#| output: asis
 display(Markdown(results_table(mwp_df)))
 ```
 
 ```{python}
 #| echo: false
+#| label: tbl-gravity-cityseer-results
+#| tbl-cap: "Cityseer Demand gravity results."
+#| output: asis
 display(Markdown(results_table(csd_df)))
 ```
 
-### 3.4 Performance
+### Performance
 
-![Performance: throughput (left) and memory use (right)](results/fig3_performance.png)
+![Computational performance: throughput and memory usage](results/fig3_performance.png){#fig-performance}
 
-## 5. Discussion
-
-1. **Gravity/demand models** (R² 0.08–0.54): `cityseer_demand` at 800m (R²=0.543, β=0.02) achieves the top gravity result, followed by `madina_worldpop` (R²=0.082 at 1500m, β=0.001).
-2. **Spatial network measures** (R² 0.14–0.35): `sDNA+` Mean Angular Distance at 400m (R²=0.353) is the top purely structural network topology measure. At smaller radii, `sDNA+` MAD captures a moderate signal (R²=0.264 at 200m). `madina` degree centrality explains a smaller fraction of variance (R²=0.145).
-3. **Raw betweenness centrality** (R² < 0.02): `cityseer` shortest path betweenness, without attractor weights, shows negligible correlation with observed pedestrian counts.
-
-Other tools (`sfnetworks` and `aperta`) were also evaluated and are documented in [Appendix: Other Centrality & Flow Modelling Tools](appendix-other-tools.md).
-
-### 5.1 Limitations
-
-1. **Matching uncertainty**: Sensor-to-network matching introduces spatial uncertainty.
-2. **Missing covariates**: No land use, population density, or POI data.
-3. **Single study area**: Results may not generalise.
-
-## 6. Conclusion
-
-Gravity-based demand models (`madina_worldpop`, `cityseer_demand`) outperform pure network centrality by over an order of magnitude for pedestrian flow estimation. The top result (R² = 0.543) comes from `cityseer_demand` with population-weighted origins and distance-decayed destination attraction. Among purely structural measures, `sDNA+` Mean Angular Distance (R² = 0.353 at 400m) provides the most informative topological signal. The benchmark demonstrates that land-use attractor weights and population origins are essential for meaningful pedestrian flow prediction, and that raw network centrality alone is insufficient.
-
-Future work should expand validation to larger, multi-city datasets and explore hybrid models combining centrality with land-use covariates.
-
-[github.com/Robinlovelace/cenbench](https://github.com/Robinlovelace/cenbench)
-
-## 7. Next Steps
+## Next Steps
 
 1. Expand validation with Vivacity pedestrian counts from oxflow
 2. Full madina API integration (Zonal-based benchmarking)
@@ -396,7 +399,7 @@ Future work should expand validation to larger, multi-city datasets and explore 
 6. Angular (simplest-path) centrality analysis
 7. K-fold spatial cross-validation
 
-## Appendix
+## Appendix {.unnumbered}
 
 ### Reproducibility
 
