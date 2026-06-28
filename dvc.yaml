@@ -54,3 +54,7 @@ stages:
       - results/fig4_tool_panels.png
       - results/leuven_results.csv
       - appendix-other-tools.qmd
+    outs:
+      - README.md
+      - results/fig1_barplot.png
+      - results/fig_gravity_barplot.png
