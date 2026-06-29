@@ -1,0 +1,77 @@
+# syntax=docker/dockerfile:1
+# Cenbench — reproducible pedestrian flow benchmarks
+# Multi-stage: (1) sDNA+ C++ lib with OpenMP, (2) Python pipeline
+
+# Stage 1: Build sDNA+ with OpenMP from fork
+FROM ubuntu:24.04 AS sdna-builder
+
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    g++-10 build-essential curl git cmake pkg-config \
+    python3 python3-pip \
+    libboost1.83-dev libboost-system1.83-dev \
+    libboost-chrono1.83-dev libboost-date-time1.83-dev \
+    libboost-thread1.83-dev libboost-iostreams1.83-dev \
+    libboost-random1.83-dev libboost-math-dev \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+ENV CC=gcc-10 CXX=g++-10
+
+RUN git clone --branch build-linux-openmp --depth=1 \
+    https://github.com/Robinlovelace/sdna_plus.git /src/sdna-plus
+
+WORKDIR /src/sdna-plus
+
+RUN cd /src/sdna-plus && \
+    sed -i 's|#include <SDKDDKVer.h>|#ifdef _WINDOWS\n#include <SDKDDKVer.h>\n#endif|' sDNA/sdna_vs2008/targetver.h && \
+    sed -i '19s|// Windows Header|#ifdef _WINDOWS\n// Windows Header|' sDNA/sdna_vs2008/stdafx.h && \
+    sed -i '23a #else\n#include <dlfcn.h>\n#endif' sDNA/sdna_vs2008/stdafx.h && \
+    sed -i 's|IteratorTypeErasure\\any_iterator\\any_iterator.hpp|IteratorTypeErasure/any_iterator/any_iterator.hpp|' sDNA/sdna_vs2008/stdafx.h && \
+    BOOST_INC=$(dpkg -L libboost1.83-dev | grep 'include/boost/version.hpp' | head -1 | sed 's|/boost/version.hpp||') && \
+    SDNA_SRC="sDNA/sdna_vs2008" && MUPARSER_SRC="sDNA/muparser/drop/src" && \
+    CXXFLAGS="-std=c++14 -O2 -fPIC -fopenmp -fpermissive -DNDEBUG -I${SDNA_SRC} -I${MUPARSER_SRC}/../include -I${BOOST_INC}" && \
+    mkdir -p /build/objs /build/objs/mu && \
+    for f in ${SDNA_SRC}/*.cpp; do g++-10 $CXXFLAGS -c "$f" -o "/build/objs/$(basename $f .cpp).o"; done && \
+    for f in ${MUPARSER_SRC}/*.cpp; do g++-10 $CXXFLAGS -c "$f" -o "/build/objs/mu/$(basename $f .cpp).o"; done && \
+    g++-10 -shared -fopenmp -ldl -lpthread /build/objs/*.o /build/objs/mu/*.o -o /build/sdna_vs2008.so && \
+    echo "sDNA+ build complete"
+
+# Stage 2: Python pipeline environment
+FROM ubuntu:24.04
+
+LABEL org.opencontainers.image.title="Cenbench"
+LABEL org.opencontainers.image.description="Reproducible pedestrian flow benchmark environment"
+LABEL org.opencontainers.image.source="https://github.com/Robinlovelace/cenbench"
+LABEL org.opencontainers.image.licenses="CC-BY-4.0"
+
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    python3 python3-pip python3-venv \
+    gdal-bin libgdal-dev libgeos-dev libspatialindex-dev \
+    git curl wget ca-certificates \
+    r-base r-cran-optparse \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Quarto for report rendering
+RUN wget -q https://github.com/quarto-dev/quarto-cli/releases/download/v1.8.27/quarto-1.8.27-linux-amd64.deb \
+    && dpkg -i quarto-1.8.27-linux-amd64.deb && rm quarto-1.8.27-linux-amd64.deb
+
+# sDNA+ .so from builder
+COPY --from=sdna-builder /build/sdna_vs2008.so /opt/sdna/lib/sdna_vs2008.so
+ENV SDNADLL=/opt/sdna/lib/sdna_vs2008.so
+
+WORKDIR /workspace
+COPY . .
+
+# pipx + sDNA+ Python CLI
+RUN python3 -m pip install --no-cache-dir pipx \
+    && pipx install sdna_plus --force
+
+# venv + all Python deps
+RUN python3 -m venv .venv && \
+    . .venv/bin/activate && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir dvc
+
+ENV PYTHONPATH="/workspace"
+ENV PATH="/workspace/.venv/bin:${PATH}"
+
+CMD ["dvc", "repro"]

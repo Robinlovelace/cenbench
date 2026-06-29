@@ -1,0 +1,13 @@
+.git
+.gitignore
+.gitmodules
+__pycache__
+*.pyc
+.venv
+build_linux
+output
+results/*.png
+results/*.html
+results/*.csv
+leuven-map*.html
+dvc.lock
