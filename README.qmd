@@ -162,17 +162,22 @@ ax1.set_axisbelow(True)
 
 # Memory subplot
 if 'peak_memory_mb' in df.columns and df['peak_memory_mb'].notna().any():
-    ram_df = perf_df[perf_df['peak_memory_mb'].notna()].sort_values('peak_memory_mb', ascending=True)
+    ram_df = perf_df[perf_df['peak_memory_mb'].notna()]
+    max_ram = ram_df['peak_memory_mb'].max()
+    # Calculate % free RAM relative to the most intensive run
+    ram_df['pct_free_ram'] = (1.0 - ram_df['peak_memory_mb'] / max_ram) * 100
+    ram_df = ram_df.sort_values('pct_free_ram', ascending=True)
+    
     r_colors = [colors_bar.get(t, '#95a5a6') for t in ram_df['tool']]
-    ax2.barh(range(len(ram_df)), ram_df['peak_memory_mb'], color=r_colors, edgecolor='white')
+    ax2.barh(range(len(ram_df)), ram_df['pct_free_ram'], color=r_colors, edgecolor='white')
     ax2.set_yticks(range(len(ram_df)))
     ax2.set_yticklabels([f"{r['tool']}\n{r['variant']}" for _, r in ram_df.iterrows()], fontsize=8)
-    ax2.set_xlabel("Peak RAM (MB)", fontsize=11)
-    ax2.set_title("Memory Use", fontsize=13, fontweight='bold')
+    ax2.set_xlabel("% RAM Free (relative to most intensive run)", fontsize=11)
+    ax2.set_title("Memory Efficiency (Bigger is Better)", fontsize=13, fontweight='bold')
     ax2.grid(True, axis='x', linestyle=':', alpha=0.5, zorder=0)
     ax2.set_axisbelow(True)
     for i, (_, r) in enumerate(ram_df.iterrows()):
-        ax2.text(r['peak_memory_mb'] + 5, i, f"{r['peak_memory_mb']:.0f} MB", va='center', fontsize=7)
+        ax2.text(r['pct_free_ram'] + 1, i, f"{r['pct_free_ram']:.1f}% ({r['peak_memory_mb']:.0f} MB)", va='center', fontsize=7)
 
 plt.tight_layout()
 fig.savefig("results/fig3_performance.png", dpi=150, bbox_inches='tight')
@@ -181,7 +186,7 @@ plt.close()
 
 ## Abstract
 
-This study benchmarks seven tools for pedestrian flow modelling using Telraam sensor data in Leuven, Belgium. madina_worldpop gravity models achieve the strongest predictive performance (R² up to 0.704), followed by cityseer_demand (R²=0.543) and sDNA+ Mean Angular Distance at 800m (R²=0.468). sDNA+ with OpenMP multi-threading completes analyses in seconds rather than minutes (59.8s for 19K edges at 800m vs 979s previously single-threaded).
+This study benchmarks seven tools for pedestrian flow modelling using Telraam sensor data in Leuven, Belgium. madina_worldpop gravity models achieve the strongest predictive performance (R² up to 0.876), followed by cityseer_demand (R²=0.543) and sDNA+ Mean Angular Distance at 800m (R²=0.468). sDNA+ with OpenMP multi-threading completes analyses in seconds rather than minutes (59.8s for 19K edges at 800m vs 979s previously single-threaded).
 
 ## Introduction
 

@@ -16,7 +16,7 @@ from scripts.config import get_path, get_city_config
 from scripts.merge_results import merge_to_csv
 
 RESULTS_DIR = "results"
-MAX_RUNTIME = 60 # 1 minute timeout per experiment
+MAX_RUNTIME = 75 # 1.25 minutes timeout per experiment
 
 def main():
     parser = argparse.ArgumentParser(description="Run demand estimation sensitivity experiments using subprocesses.")
