@@ -111,7 +111,6 @@ plot_df = plot_df.sort_values('r_squared', ascending=True)
 colors = {
     'cityseer': '#3498db',
     'madina': '#e74c3c',
-    'sfnetworks': '#2ecc71',
     'madina_worldpop': '#f39c12',
     'cityseer_demand': '#9b59b6',
     'sdna': '#1abc9c',
@@ -202,7 +201,7 @@ Pedestrian flow modelling is central to walkability analysis, transport planning
 
 **madina** [@sevtsuk2025madina] implements Urban Network Analysis (UNA) with flow simulation, decay functions, and detour penalties.
 
-**sfnetworks** [@vandermeer2024sfnetworks] provides a tidyverse-compatible R interface for spatial network analysis.
+**sDNA+** [@cooper2020sdna] provides 3-d spatial network analysis via a C++ library with Python, QGIS, and command-line interfaces, supporting hybrid and angular metrics with OpenMP multi-threading.
 
 ### 1.1 Related Work
 

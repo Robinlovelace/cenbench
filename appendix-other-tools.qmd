@@ -23,45 +23,7 @@ tar_load(leuven_results)
 
 This appendix documents also-ran tools that were evaluated as part of the pedestrian flow centrality benchmark in Leuven, Belgium, but are not in the core set of packages (cityseer, sDNA Plus, and madina).
 
-## 1. sfnetworks
-
-`sfnetworks` is an R package combining spatial data (`sf`) and network analysis (`tidygraph` based on `igraph`). It allows computing edge betweenness centrality natively on spatial networks.
-
-### Leuven Results for sfnetworks
-
-On the Leuven walk network, `sfnetworks` edge betweenness centrality shows a moderate correlation with daily pedestrian counts ($R^2 = 0.466$, Pearson $r = 0.682$, execution time of 5.0s).
-
-```{python}
-#| echo: false
-import pandas as pd
-import numpy as np
-from IPython.display import display, Markdown
-
-def load_results(path):
-    data = pd.read_csv(path)
-    for col in ["peak_memory_mb", "segments_per_sec", "spearman_r", "r_squared_log"]:
-        if col not in data.columns:
-            data[col] = np.nan
-    return data
-
-def results_table(data):
-    lines = ["| Variant | R² | Pearson r | Time (s) | RAM (MB) | Seg/s | Matched |",
-             "|---------|-----|-----------|----------|----------|-------|---------|"]
-    for _, row in data.iterrows():
-        ram = f"{row['peak_memory_mb']:.0f}" if not pd.isna(row['peak_memory_mb']) else "—"
-        sps = f"{row['segments_per_sec']:.0f}" if not pd.isna(row['segments_per_sec']) else "—"
-        lines.append(
-            f"| {row['variant']} | {row['r_squared']:.3f} | {row['pearson_r']:.3f} | "
-            f"{row['compute_time_s']:.1f} | {ram} | {sps} | {int(row['n_matched'])} |"
-        )
-    return "\n".join(lines)
-
-df = load_results("results/leuven_results.csv")
-sf_df = df[df["tool"] == "sfnetworks"].sort_values("r_squared", ascending=False)
-display(Markdown(results_table(sf_df)))
-```
-
-## 2. aperta
+## 1. aperta
 
 `aperta` is an open-source, Python-based tool for calculating network metrics. We evaluated both full and sampled edge betweenness.
 
