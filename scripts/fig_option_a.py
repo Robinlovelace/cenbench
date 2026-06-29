@@ -128,13 +128,18 @@ def main():
             except Exception as e:
                 print(f"Error loading {pred_file}: {e}")
                 
-        # Draw scatter plot if prediction data is available
-        if obs is not None and pred is not None and len(obs) > 0:
+        # Draw scatter plot if prediction data is available and non-constant
+        valid = (obs is not None and pred is not None and len(obs) >= 3 and 
+                 not np.all(pred == pred[0]) and not np.any(np.isnan(pred)) and not np.any(np.isnan(obs)))
+        if valid:
             ax.scatter(pred, obs, c=color, alpha=0.7, edgecolors="black", linewidth=0.5, s=60, zorder=3)
             # Linear regression fit line
-            m_fit, b_fit = np.polyfit(pred, obs, 1)
-            x_line = np.linspace(pred.min(), pred.max(), 50)
-            ax.plot(x_line, m_fit * x_line + b_fit, color=color, linewidth=2, linestyle="--", zorder=2)
+            try:
+                m_fit, b_fit = np.polyfit(pred, obs, 1)
+                x_line = np.linspace(pred.min(), pred.max(), 50)
+                ax.plot(x_line, m_fit * x_line + b_fit, color=color, linewidth=2, linestyle="--", zorder=2)
+            except Exception as e:
+                print(f"Skipping fit line for {tool}: {e}")
             ax.set_xlabel(f"Predicted Flow ({tool})", fontsize=10)
             ax.set_ylabel("Observed Flow (Telraam)", fontsize=10)
             ax.grid(True, linestyle=":", alpha=0.6)

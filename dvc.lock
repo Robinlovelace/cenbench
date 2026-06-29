@@ -9,8 +9,8 @@ stages:
       size: 700
     - path: scripts/config.py
       hash: md5
-      md5: d435dced50faa92da96bd22bc442be81
-      size: 1305
+      md5: e15826ebf21d825d512fb46010eb2460
+      size: 1306
     - path: scripts/prepare_demand.py
       hash: md5
       md5: 9e6e185b3e6d8f1671bb30eb2f12e4d5
@@ -18,12 +18,12 @@ stages:
     outs:
     - path: data/leuven_attractors.geojson
       hash: md5
-      md5: 43975c0f76a751eafd91d1af210eb190
-      size: 556
+      md5: 5d9baa17fc690c4ea7ad339b00cbc56b
+      size: 155957
     - path: data/leuven_worldpop_origins.geojson
       hash: md5
-      md5: f27b2225657688f3d2d79c85ca4f6e09
-      size: 95575
+      md5: 0bb365ebdfc40345274e149e845ac463
+      size: 473509
   bench_leuven:
     cmd: PYTHONPATH=. .venv/bin/python scripts/bench_leuven.py
     deps:
@@ -182,40 +182,50 @@ stages:
       md5: ae396bcef419f724cb3a20b55898db75
       size: 754854
   generate_plots:
-    cmd: PYTHONPATH=. .venv/bin/python scripts/fig_input_datasets.py && 
-      PYTHONPATH=. .venv/bin/python scripts/fig_option_a.py
+    cmd: PYTHONPATH=. .venv/bin/python scripts/fig_input_datasets.py --city 
+      leuven && PYTHONPATH=. .venv/bin/python scripts/fig_option_a.py --city 
+      leuven
     deps:
+    - path: config/cities.yaml
+      hash: md5
+      md5: 48a912d57e6b5ffad6cee1b81d03c061
+      size: 700
     - path: results/cityseer_demand_best_predictions.csv
       hash: md5
-      md5: 196dbc4cc55ceac226a88bb1ee1b5b8c
-      size: 707
-    - path: results/madina_worldpop_best_predictions.csv
+      md5: 61a59c419ec21d0a4864fabeccf0a8de
+      size: 710
+    - path: results/leuven_best_predictions.csv
       hash: md5
-      md5: d5fb8834122553b30d1dc9780283d1b2
-      size: 725
+      md5: 4201a09f94f3ab23d1892ed30955a43e
+      size: 407
     - path: results/sdna_best_predictions.csv
       hash: md5
       md5: e173cb3e226511707c22f3bc9b127b12
       size: 514
     - path: scripts/config.py
       hash: md5
-      md5: 2043848db54d156cccece7025547291e
-      size: 815
+      md5: e15826ebf21d825d512fb46010eb2460
+      size: 1306
     - path: scripts/fig_input_datasets.py
       hash: md5
-      md5: 90e27e1667c8cdac2e37684d681cabab
-      size: 3524
+      md5: 9514031d98d077f54c25f1033aa397fd
+      size: 3817
     - path: scripts/fig_option_a.py
       hash: md5
-      md5: 8cd21640fb0c36b4cc3eb7a0b921d6c9
-      size: 7577
+      md5: c4b1a0c1843d148344405ce5fc7cf40d
+      size: 8039
   run_benchmarks:
-    cmd: PYTHONPATH=. .venv/bin/python scripts/bench_leuven.py && PYTHONPATH=. 
-      .venv/bin/python scripts/run_cityseer_demand_experiments.py && 
-      PYTHONPATH=. .venv/bin/python scripts/run_leuven_demand_experiments.py && 
-      PYTHONPATH=. .venv/bin/python scripts/bench_sdna.py && PYTHONPATH=. 
-      .venv/bin/python scripts/generate_interactive_map.py
+    cmd: PYTHONPATH=. .venv/bin/python scripts/bench_city.py --city leuven && 
+      PYTHONPATH=. .venv/bin/python scripts/run_cityseer_demand_experiments.py 
+      && PYTHONPATH=. .venv/bin/python scripts/run_demand_experiments.py --city 
+      leuven && PYTHONPATH=. .venv/bin/python scripts/bench_sdna.py && 
+      PYTHONPATH=. .venv/bin/python scripts/generate_interactive_map.py --city 
+      leuven
     deps:
+    - path: config/cities.yaml
+      hash: md5
+      md5: 48a912d57e6b5ffad6cee1b81d03c061
+      size: 700
     - path: data/leuven_attractors.geojson
       hash: md5
       md5: 5d9baa17fc690c4ea7ad339b00cbc56b
@@ -232,22 +242,22 @@ stages:
       hash: md5
       md5: 0bb365ebdfc40345274e149e845ac463
       size: 473509
-    - path: scripts/bench_leuven.py
+    - path: scripts/bench_city.py
       hash: md5
-      md5: a4bde747ca27337e28c25128ea52be82
-      size: 7137
+      md5: c2dd6abe1020b89b8f43f4a15cf0f826
+      size: 7341
     - path: scripts/bench_sdna.py
       hash: md5
       md5: ca86847d7c67e9d1612b60eba65a47b6
       size: 8563
     - path: scripts/config.py
       hash: md5
-      md5: 2043848db54d156cccece7025547291e
-      size: 815
+      md5: e15826ebf21d825d512fb46010eb2460
+      size: 1306
     - path: scripts/generate_interactive_map.py
       hash: md5
-      md5: a0b51c732cc5d8b4405294d8ffdd62b3
-      size: 30263
+      md5: cda690ab92233ba1ddc00d179f6425d4
+      size: 28561
     - path: scripts/merge_results.py
       hash: md5
       md5: 3bf194b8ca5e6d9d8ace813e1992e002
@@ -256,59 +266,80 @@ stages:
       hash: md5
       md5: 8f36a220a28c2b10a9f49412f71c782b
       size: 32493
-    - path: scripts/run_leuven_demand_experiments.py
+    - path: scripts/run_demand_experiments.py
       hash: md5
-      md5: e7825e81104f6725320719599149d6bb
-      size: 8730
+      md5: c64dcf977f6043dc8545a760ee1f63a6
+      size: 6126
+    - path: scripts/run_single_experiment.py
+      hash: md5
+      md5: d984e3fe4a46b15ff69910c5d33d91d5
+      size: 4061
+    - path: scripts/utils/helpers.py
+      hash: md5
+      md5: 310d31d89342ae08d0f90a5ff30005a9
+      size: 1863
     outs:
     - path: leuven-map-cityseer-demand.html
       hash: md5
-      md5: a53ecca32b9829f25603e916484c1433
-      size: 5575292
+      md5: 234101a5e6c6e52b8b947eac52bf0683
+      size: 5575312
     - path: leuven-map.html
       hash: md5
-      md5: 714c2e14af0856cb35afde5b79fdd87c
-      size: 2466202
+      md5: a25d779fe8752f93f1c436e0b2661df8
+      size: 2364620
     - path: results/cityseer_demand_best_predictions.csv
       hash: md5
-      md5: 196dbc4cc55ceac226a88bb1ee1b5b8c
-      size: 707
+      md5: 61a59c419ec21d0a4864fabeccf0a8de
+      size: 710
+    - path: results/leuven_best_predictions.csv
+      hash: md5
+      md5: 4201a09f94f3ab23d1892ed30955a43e
+      size: 407
     - path: results/leuven_results.csv
       hash: md5
-      md5: 463e0ec3a627be5b47f18e06d5d09898
-      size: 4995
-    - path: results/madina_worldpop_best_predictions.csv
-      hash: md5
-      md5: d5fb8834122553b30d1dc9780283d1b2
-      size: 725
+      md5: 2f3abc25604147033d20457af8220689
+      size: 4508
     - path: results/sdna_best_predictions.csv
       hash: md5
       md5: e173cb3e226511707c22f3bc9b127b12
       size: 514
     - path: results/sdna_results.csv
       hash: md5
-      md5: 3e70a6fcd8384734c07272f897675cc4
-      size: 1823
+      md5: 167a0ace613c57df532fd99728654775
+      size: 1819
   render_report:
     cmd: quarto render README.qmd --to gfm
     deps:
     - path: README.qmd
       hash: md5
-      md5: b471c621357b865fee30f2738a2c7559
-      size: 18119
+      md5: 3430ab17afeb50384c5957014e07bfff
+      size: 17908
     - path: appendix-other-tools.qmd
       hash: md5
       md5: 74ba1619c850d2a4cc392ceb039199ce
       size: 2724
     - path: results/fig4_tool_panels.png
       hash: md5
-      md5: 6504f7a173bb7fa3c4f4b9be90b7f8f2
-      size: 619568
+      md5: 42a7d503a83e5060071e50f0fad7931f
+      size: 572064
     - path: results/leuven_input_datasets.png
       hash: md5
-      md5: 232aaea7a41489785c19d69c04fa8efb
-      size: 2009314
+      md5: c427ce4835c9fda66b05043d38f428e2
+      size: 5647256
     - path: results/leuven_results.csv
       hash: md5
-      md5: 463e0ec3a627be5b47f18e06d5d09898
-      size: 4995
+      md5: 2f3abc25604147033d20457af8220689
+      size: 4508
+    outs:
+    - path: README.md
+      hash: md5
+      md5: 17f43aec868dbd6ad9d72604c7ea2611
+      size: 13503
+    - path: results/fig1_barplot.png
+      hash: md5
+      md5: 8904f07b6935bd10f2a5c85aec8180df
+      size: 97872
+    - path: results/fig_gravity_barplot.png
+      hash: md5
+      md5: 1e782b7a5f3f8d7dbba37637aa7d542c
+      size: 59839

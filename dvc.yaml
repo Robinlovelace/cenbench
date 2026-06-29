@@ -20,6 +20,7 @@ stages:
       - scripts/bench_city.py
       - scripts/run_cityseer_demand_experiments.py
       - scripts/run_demand_experiments.py
+      - scripts/run_single_experiment.py
       - scripts/bench_sdna.py
       - scripts/generate_interactive_map.py
       - scripts/merge_results.py
