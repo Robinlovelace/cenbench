@@ -333,8 +333,8 @@ stages:
     deps:
     - path: README.qmd
       hash: md5
-      md5: cb341faf6cdf1e504172313fafbd0dc8
-      size: 19337
+      md5: 4058627a92504a4e614ca2b39310db90
+      size: 19152
     - path: appendix-other-tools.qmd
       hash: md5
       md5: 74ba1619c850d2a4cc392ceb039199ce
@@ -349,17 +349,17 @@ stages:
       size: 5647256
     - path: results/leuven_results.csv
       hash: md5
-      md5: 4c4d622c28c72c5dd77a5e9d9741e5c3
-      size: 4885
+      md5: 34ae155bfe6e27a524f6b5430b3c5806
+      size: 5098
     outs:
     - path: README.md
       hash: md5
-      md5: 472b18e8fb47a371e0e5eae714080ced
-      size: 15028
+      md5: 9c7aa14b4c957c48c31b1c69c162f669
+      size: 15016
     - path: results/fig1_barplot.png
       hash: md5
-      md5: 8904f07b6935bd10f2a5c85aec8180df
-      size: 97872
+      md5: ce48adb69b9dbef9855965ffa2b1e68a
+      size: 109825
     - path: results/fig_gravity_barplot.png
       hash: md5
       md5: dd50e780dad10c3f86ad605c753a42c7
@@ -381,8 +381,8 @@ stages:
       size: 4882432
     - path: scripts/bench_city.py
       hash: md5
-      md5: eb2c67a2e011542cc6232713ba8350ae
-      size: 7352
+      md5: c8aaf2612d3746bc1123d016bd4b9214
+      size: 8589
     - path: scripts/config.py
       hash: md5
       md5: e15826ebf21d825d512fb46010eb2460
@@ -394,8 +394,8 @@ stages:
     outs:
     - path: results/leuven_centrality_results.csv
       hash: md5
-      md5: e395481fe78696358802889f8c40f6e1
-      size: 856
+      md5: 4aa81a6af073af445f6a8ed65d343e96
+      size: 1065
   bench_madina_gravity:
     cmd: PYTHONPATH=. .venv/bin/python scripts/run_demand_experiments.py --city 
       leuven
@@ -446,8 +446,8 @@ stages:
     deps:
     - path: results/leuven_centrality_results.csv
       hash: md5
-      md5: e395481fe78696358802889f8c40f6e1
-      size: 856
+      md5: 4aa81a6af073af445f6a8ed65d343e96
+      size: 1065
     - path: results/leuven_cityseer_demand_results.csv
       hash: md5
       md5: 71c22974c95546e25d18b20cac3b6619
@@ -468,5 +468,5 @@ stages:
     outs:
     - path: results/leuven_results.csv
       hash: md5
-      md5: 4c4d622c28c72c5dd77a5e9d9741e5c3
-      size: 4885
+      md5: 34ae155bfe6e27a524f6b5430b3c5806
+      size: 5098

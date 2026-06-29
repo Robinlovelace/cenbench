@@ -12,9 +12,9 @@ number-depth: 3
 execute:
   warning: false
   message: false
-#   cache: true
 bibliography: references.bib
 jupyter: python3
+license: "CC BY 4.0"
 ---
 
 ```{python}
@@ -75,7 +75,7 @@ df = load_results("results/leuven_results.csv")
 
 # ── Variant culling: keep informative subset (~10 variants) ──
 KEEP_VARIANTS = {
-    "cityseer": ["shortest_200m", "shortest_800m", "shortest_3200m"],
+    "cityseer": ["shortest_200m", "shortest_800m", "shortest_3200m", "segment_800m", "segment_1600m"],
     "madina": ["degree", "btw_weighted_200"],
     "madina_worldpop": [
         "wp_r3000_beta002_all",
@@ -186,7 +186,9 @@ plt.close()
 
 ## Abstract
 
-This study benchmarks seven tools for pedestrian flow modelling using Telraam sensor data in Leuven, Belgium. madina_worldpop gravity models achieve the strongest predictive performance (R² up to 0.876), followed by cityseer_demand (R²=0.543) and sDNA+ Mean Angular Distance at 800m (R²=0.468). sDNA+ with OpenMP multi-threading completes analyses in seconds rather than minutes (59.8s for 19K edges at 800m vs 979s previously single-threaded).
+This study benchmarks five tools for pedestrian flow modelling using Telraam sensor data in Leuven, Belgium. madina_worldpop gravity models achieve the strongest predictive performance (R² up to 0.876), followed by cityseer_demand (R²=0.543) and sDNA+ [@cooper2020sdna] Mean Angular Distance at 800m (R²=0.468). sDNA+ with OpenMP multi-threading completes analyses in seconds rather than minutes (59.8s for 19K edges at 800m vs 979s previously single-threaded).
+
+> **⚠ Work in progress** — This manuscript is actively evolving. Contributions, issues, and forks are welcome at [github.com/Robinlovelace/cenbench](https://github.com/Robinlovelace/cenbench).
 
 ## Introduction
 
@@ -299,10 +301,6 @@ WorldPop population data (100m grid, total population 171,574) serves as origin 
 
 ## Results
 
-### Benchmark Barplot
-
-![Leuven R² comparison across pure centrality methods (cityseer, madina, sDNA+)](results/fig1_barplot.png){#fig-barplot-centrality}
-
 ```{python}
 #| include: false
 # ── GRAVITY-ONLY BARPLOT ──
@@ -334,6 +332,8 @@ plt.close()
 ### Centrality Methods
 
 Centrality methods measure the structural importance of each network edge (or node) based purely on network geometry — how many shortest paths pass through it (betweenness) or how quickly it can reach nearby edges (closeness). They do not incorporate trip origins, destinations, or land-use data. Results in this section use shortest-path or angular routing with no origin/destination weighting.
+
+![Leuven R² comparison across pure centrality methods (cityseer, madina, sDNA+)](results/fig1_barplot.png){#fig-barplot-centrality}
 
 #### cityseer
 
@@ -410,56 +410,59 @@ display(Markdown(perf.to_markdown()))
 ## Next Steps
 
 1. Expand validation with Vivacity pedestrian counts from oxflow
-2. Full madina API integration (Zonal-based benchmarking)
-3. Gravity models combining centrality with land-use attractiveness
-4. Add covariates: POI density, population, transit stops
-5. Multi-city comparison (Leeds, Manchester, Edinburgh)
-6. Angular (simplest-path) centrality analysis
-7. K-fold spatial cross-validation
+2. Multi-city comparison (Leeds, Manchester, Edinburgh)
+3. K-fold spatial cross-validation
+4. Angular (simplest-path) analysis with cityseer `segment_centrality`
+5. Add covariates: POI density, population, transit stops
 
 ## Appendix {.unnumbered}
 
+<details>
+<summary>Reproducibility: DVC pipeline, setup, and version details</summary>
+
 ### How to Run and Update Benchmarks
 
-The benchmark suite is fully orchestrated using **DVC** (Data Version Control) to manage dependencies, execution caching, and outputs.
+The benchmark suite is fully orchestrated using **[DVC](https://dvc.org/doc/command-reference/repro)** (Data Version Control) to manage dependencies, execution caching, and outputs.
 
 #### 1. Setup the Environment
-Ensure you have the required dependencies installed (including Python packages, the `sDNA+` CLI, and the pandas 3.0+/numpy 2.0+ compatible `madina` fork) by running:
+
 ```bash
 pip install -r requirements.txt
 ```
 
 #### 2. Run the Pipeline
-To run the entire benchmark pipeline (prepare demand datasets, run cityseer, madina, and sDNA benchmarks, generate visual figures, and compile the final report):
+
 ```bash
 dvc repro
 ```
-DVC will trace dependencies and execute only the stages whose code, configurations, or data inputs have changed, retrieving the rest from cache.
 
 #### 3. Rapid Testing Mode
-To quickly test code changes on a lightweight 5,900-edge cropped dataset rather than the full 19k edge network:
+
 1. Open `scripts/config.py`.
 2. Toggle `TEST_MODE = True`.
 3. Run `dvc repro`.
-Remember to flip `TEST_MODE = False` before committing final results.
+4. Flip `TEST_MODE = False` before committing.
 
 #### 4. Add/Modify Experiments
-- **sDNA+**: Edit configurations in `scripts/bench_sdna.py`.
-- **Madina (Zonal)**: Edit the dictionary grid list in `scripts/run_leuven_demand_experiments.py`.
-- **Cityseer**: Edit configurations in `scripts/run_cityseer_demand_experiments.py`.
+
+- **sDNA+**: Edit `scripts/bench_sdna.py`.
+- **Madina gravity**: Edit `scripts/run_demand_experiments.py`.
+- **Cityseer demand**: Edit `scripts/run_cityseer_demand_experiments.py`.
+- **Centrality**: Edit `scripts/bench_city.py`.
 
 ### Project Structure & Reproducibility
 
 - `dvc.yaml` — Stage orchestration and dependencies
-- `scripts/bench_all.py` — Unified benchmark runner
+- `dvc.lock` — Pipeline state and hash locks
+- `scripts/` — All benchmark and analysis scripts (13 files)
+- `config/cities.yaml` — City parameters
 - `results/leuven_results.csv` — Compiled metrics output
-- `results/fig1_barplot.png` — R² comparison plot
-- `results/fig2_performance.png` — Throughput and memory use comparison
 
 ```{python}
 #| echo: false
 #| output: asis
-import sys, networkx, pandas, geopandas, cityseer
+import sys, networkx, pandas, geopandas, cityseer, madina as m
+# sdna-plus is installed via pipx, not importable as a module
 print("| Package | Version |")
 print("|---------|---------|")
 print(f"| Python | {sys.version.split()[0]} |")
@@ -467,4 +470,8 @@ print(f"| cityseer | {cityseer.__version__ if hasattr(cityseer, '__version__') e
 print(f"| networkx | {networkx.__version__} |")
 print(f"| pandas | {pandas.__version__} |")
 print(f"| geopandas | {geopandas.__version__} |")
+print(f"| madina | {m.__version__ if hasattr(m, '__version__') else 'installed'} |")
+print(f"| sDNA+ | (CLI) |")
 ```
+
+</details>
