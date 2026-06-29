@@ -2,15 +2,29 @@
 Robin Lovelace
 2026-06-01
 
-<!-- ## Abstract
-&#10;This study benchmarks five tools for pedestrian flow modelling using Telraam sensor data in Leuven, Belgium. madina_worldpop gravity models achieve the strongest predictive performance (R² up to 0.876), followed by cityseer_demand (R²=0.543) and sDNA+ [@cooper2020sdna] Mean Angular Distance at 800m (R²=0.468). sDNA+ with OpenMP multi-threading completes analyses in seconds rather than minutes (59.8s for 19K edges at 800m vs 979s previously single-threaded). -->
+## Abstract
 
-<!-- ## Introduction
-&#10;Pedestrian flow modelling is central to walkability analysis, transport planning, and urban design. Three approaches exist: network centrality (betweenness), gravity/flow models (origin-destination allocation with distance decay), and spatial network analysis (graph-based metrics within a GIS framework).
-&#10;**cityseer** [@simons2022cityseer] implements high-performance centrality in Rust.
-**madina** [@sevtsuk2025madina] implements Urban Network Analysis (UNA) with flow simulation.
-**sDNA+** [@cooper2020sdna] provides 3-d spatial network analysis with hybrid and angular metrics.
-&#10;-->
+Open-source tools for pedestrian flow modelling have proliferated, yet
+users face a “horses for courses” question: which tool for which task?
+Each package — cityseer, madina, and sDNA+ — has distinct design
+philosophies, historical origins, intended use cases, and user
+communities.
+
+This study benchmarks all three against 22 Telraam pedestrian sensors in
+Leuven, Belgium, evaluating both pure centrality metrics and
+gravity-based demand models.
+
+The results reveal complementary strengths rather than a single “best”
+tool. Madina’s Urban Network Analysis framework, combined with WorldPop
+population data, achieves the strongest gravity-model performance (R² up
+to 0.876). Cityseer’s Rust-based demand model offers competitive results
+(R²=0.543) with rapid computation. sDNA+’s angular analysis captures
+pedestrian route choice behaviour effectively (R²=0.468) through its
+dedicated angular betweenness metric (MAD).
+
+All tools and results are fully reproducible via DVC pipeline and Docker
+container. As versions continue to evolve, this benchmark provides a
+snapshot that can be extended and updated by the community.
 
 > **⚠ Work in progress** — This manuscript is actively evolving.
 > Contributions, issues, and forks are welcome at
@@ -44,30 +58,44 @@ Robin Lovelace
 ## Introduction
 
 Pedestrian flow modelling is central to walkability analysis, transport
-planning, and urban design. Three approaches exist:
+planning, and urban design. A growing ecosystem of open-source Python
+packages addresses this problem, but each approaches it from a different
+angle: network centrality metrics that measure structural importance,
+gravity models that allocate trips between origins and destinations, and
+spatial network analysis that integrates both within a GIS framework.
 
-1.  **Network Centrality** — Measures the structural importance of nodes
-    or edges.
-2.  **Gravity / Flow Models** — Trip distribution proportional to
-    attractor weight and distance.
-3.  **Spatial Network Analysis** — Graph-based metrics within a GIS
-    framework.
+This paper reviews three tools that represent distinct traditions in the
+field:
 
-**cityseer** (Simons 2022) implements high-performance centrality in
-Rust, with shortest-path and angular analysis.
+- **cityseer** (Simons 2022) emerged from urban morphology research,
+  implementing high-performance centrality and accessibility metrics in
+  Rust. Its design prioritises computational efficiency and rigorous
+  network representation, with support for both metric (shortest-path)
+  and angular (simplest-path) analysis.
 
-**madina** (Sevtsuk and Alhassan 2025) implements Urban Network Analysis
-(UNA) with flow simulation, decay functions, and detour penalties.
+- **madina** (Sevtsuk and Alhassan 2025) (formerly part of the Urban
+  Network Analysis toolbox) originates from spatial network analysis and
+  Urban Network Analysis (UNA) traditions. It excels at flow simulation
+  with configurable decay functions, detour penalties, and integration
+  with population data and land-use attractors — making it well suited
+  for gravity-based demand modelling.
 
-**sDNA+** (Cooper and Chiaradia 2020) provides 3-d spatial network
-analysis via a C++ library with Python, QGIS, and command-line
-interfaces, supporting hybrid and angular metrics with OpenMP
-multi-threading.
+- **sDNA+** (Cooper and Chiaradia 2020) (Spatial Design Network
+  Analysis) was developed at Cardiff University with a focus on
+  accessibility analysis for pedestrians, cyclists, and vehicles. Its
+  distinctive angular analysis and hybrid metrics capture route
+  directness in a way that aligns with human navigation behaviour, and
+  its C++ backend with OpenMP multi-threading handles large networks
+  efficiently.
 
-<!-- TODO: populate this section -->
-
-<!-- ### Related Work
-&#10;This study benchmarks network centrality and gravity-based pedestrian flow models using Telraam validation data from Leuven, Belgium. -->
+Rather than declaring a single “best” tool, this review adopts a “horses
+for courses” perspective: each tool has specific contexts where it
+excels, shaped by its design philosophy, user community, and historical
+development. We benchmark all three against the same validation data —
+22 Telraam pedestrian sensors in Leuven — to provide a practical guide
+for practitioners choosing tools for pedestrian traffic estimation. All
+results are fully reproducible via a DVC pipeline and Docker container,
+and we welcome contributions as tools and versions continue to evolve.
 
 ### Input Datasets
 
@@ -177,6 +205,12 @@ Table 4: Gravity/demand model configurations.
 - **n_matched**: Number of matched sensor-model pairs
 
 ## Results
+
+The results confirm a “horses for courses” picture: each tool performs
+best on the type of analysis it was designed for. Centrality methods —
+measuring purely structural network importance — show strong variation
+across tools, while gravity-based demand models incorporating land-use
+data achieve substantially higher predictive power across all tools.
 
 ### Centrality Methods
 
@@ -312,10 +346,17 @@ Figure 4: Computational performance: throughput and memory usage
 
 ## Next Steps
 
-1.  Multi-city comparison (Leeds, Manchester, Edinburgh)
-2.  K-fold spatial cross-validation
-3.  Additional goodness-of-fit metrics and centrality measures
-4.  Test adding covariates: e.g. POI density, population, transit stops
+This benchmark provides a reproducible snapshot of tool performance. As
+versions evolve, the results can be updated and extended. Future
+directions include:
+
+1.  Multi-city validation (Leeds, Manchester, Edinburgh) to test
+    transferability
+2.  K-fold spatial cross-validation for robust comparison
+3.  Adding covariates (POI density, population, transit stops) to
+    centrality models
+4.  Community contributions to extend the benchmark to additional tools
+    and datasets
 
 ## Reproducibility
 
