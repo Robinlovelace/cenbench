@@ -9,21 +9,22 @@ stages:
       - data/leuven_worldpop_origins.geojson
       - data/leuven_attractors.geojson
 
-  run_benchmarks:
-    cmd: >-
-      PYTHONPATH=. .venv/bin/python scripts/bench_city.py --city leuven &&
-      PYTHONPATH=. .venv/bin/python scripts/run_cityseer_demand_experiments.py &&
-      PYTHONPATH=. .venv/bin/python scripts/run_demand_experiments.py --city leuven &&
-      PYTHONPATH=. .venv/bin/python scripts/bench_sdna.py &&
-      PYTHONPATH=. .venv/bin/python scripts/generate_interactive_map.py --city leuven
+  bench_centrality:
+    cmd: PYTHONPATH=. .venv/bin/python scripts/bench_city.py --city leuven
     deps:
       - scripts/bench_city.py
+      - scripts/config.py
+      - config/cities.yaml
+      - scripts/utils/helpers.py
+      - data/leuven_walk_edges.gpkg
+      - data/leuven_telraam_pedestrians_4326.geojson
+    outs:
+      - results/leuven_centrality_results.csv
+
+  bench_cityseer_demand:
+    cmd: PYTHONPATH=. .venv/bin/python scripts/run_cityseer_demand_experiments.py
+    deps:
       - scripts/run_cityseer_demand_experiments.py
-      - scripts/run_demand_experiments.py
-      - scripts/run_single_experiment.py
-      - scripts/bench_sdna.py
-      - scripts/generate_interactive_map.py
-      - scripts/merge_results.py
       - scripts/config.py
       - config/cities.yaml
       - scripts/utils/helpers.py
@@ -32,13 +33,61 @@ stages:
       - data/leuven_worldpop_origins.geojson
       - data/leuven_attractors.geojson
     outs:
-      - results/leuven_results.csv
+      - results/leuven_cityseer_demand_results.csv
       - results/cityseer_demand_best_predictions.csv
-      - results/leuven_best_predictions.csv
-      - results/sdna_best_predictions.csv
-      - results/sdna_results.csv
       - leuven-map-cityseer-demand.html
+
+  bench_madina_gravity:
+    cmd: PYTHONPATH=. .venv/bin/python scripts/run_demand_experiments.py --city leuven
+    deps:
+      - scripts/run_demand_experiments.py
+      - scripts/run_single_experiment.py
+      - scripts/config.py
+      - config/cities.yaml
+      - scripts/utils/helpers.py
+      - data/leuven_walk_edges.gpkg
+      - data/leuven_telraam_pedestrians_4326.geojson
+      - data/leuven_worldpop_origins.geojson
+      - data/leuven_attractors.geojson
+    outs:
+      - results/leuven_madina_worldpop_results.csv
+
+  bench_sdna:
+    cmd: PYTHONPATH=. .venv/bin/python scripts/bench_sdna.py
+    deps:
+      - scripts/bench_sdna.py
+      - scripts/config.py
+      - config/cities.yaml
+      - scripts/utils/helpers.py
+      - data/leuven_walk_edges.gpkg
+      - data/leuven_telraam_pedestrians_4326.geojson
+    outs:
+      - results/sdna_results.csv
+      - results/sdna_best_predictions.csv
+
+  generate_interactive_map:
+    cmd: PYTHONPATH=. .venv/bin/python scripts/generate_interactive_map.py --city leuven
+    deps:
+      - scripts/generate_interactive_map.py
+      - scripts/config.py
+      - config/cities.yaml
+      - scripts/utils/helpers.py
+      - data/leuven_walk_edges.gpkg
+      - data/leuven_telraam_pedestrians_4326.geojson
+    outs:
       - leuven-map.html
+      - results/leuven_best_predictions.csv
+
+  merge_results:
+    cmd: PYTHONPATH=. .venv/bin/python scripts/merge_all.py
+    deps:
+      - scripts/merge_all.py
+      - results/leuven_centrality_results.csv
+      - results/leuven_cityseer_demand_results.csv
+      - results/leuven_madina_worldpop_results.csv
+      - results/sdna_results.csv
+    outs:
+      - results/leuven_results.csv
 
   generate_plots:
     cmd: PYTHONPATH=. .venv/bin/python scripts/fig_input_datasets.py --city leuven && PYTHONPATH=. .venv/bin/python scripts/fig_option_a.py --city leuven

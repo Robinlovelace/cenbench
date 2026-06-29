@@ -160,7 +160,7 @@ def main():
             
     # SAVE (merge per tool)
     from scripts.merge_results import merge_to_csv
-    results_path = f"{RESULTS_DIR}/{city}_results.csv"
+    results_path = f"{RESULTS_DIR}/{city}_centrality_results.csv"
     
     # If the file already exists, we should clear it or append
     # merge_to_csv clears and merges for the tool

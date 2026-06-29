@@ -19,7 +19,7 @@ from scripts.config import get_path
 
 DATA_DIR = os.path.join(workspace, "data")
 RESULTS_DIR = os.path.join(workspace, "results")
-RESULTS_FILE = os.path.join(RESULTS_DIR, "leuven_results.csv")
+RESULTS_FILE = os.path.join(RESULTS_DIR, "leuven_cityseer_demand_results.csv")
 CRS_UTM = 32631
 MATCH_DIST = 200
 

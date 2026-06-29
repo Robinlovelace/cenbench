@@ -206,8 +206,6 @@ finally:
 
 # ═══════════ SAVE (merge into leuven_results.csv) ═══════════
 df = pd.DataFrame(all_results)
-from scripts.merge_results import merge_to_csv
-merge_to_csv("sdna", df, f"{RESULTS_DIR}/leuven_results.csv")
 # Also save standalone copy for convenience
 df.to_csv(f"{RESULTS_DIR}/sdna_results.csv", index=False)
 print(f"\n── RESULTS ({len(df)} variants) ──", flush=True)

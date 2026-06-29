@@ -25,7 +25,7 @@ def main():
     
     city = args.city
     cfg = get_city_config(city)
-    results_file = os.path.join(RESULTS_DIR, f"{city}_results.csv")
+    results_file = os.path.join(RESULTS_DIR, f"{city}_madina_worldpop_results.csv")
     
     # Load sensors to count total observations for timeout fallback
     telr = gpd.read_file(get_path(cfg["sensors_file"]))
