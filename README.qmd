@@ -333,6 +333,8 @@ plt.close()
 
 ### Centrality Methods
 
+Centrality methods measure the structural importance of each network edge (or node) based purely on network geometry — how many shortest paths pass through it (betweenness) or how quickly it can reach nearby edges (closeness). They do not incorporate trip origins, destinations, or land-use data. Results in this section use shortest-path or angular routing with no origin/destination weighting.
+
 #### cityseer
 
 ```{python}
@@ -367,6 +369,8 @@ if len(sdna_df) > 0:
 
 ### Gravity / Demand Models
 
+Gravity models estimate pedestrian flow by simulating trips from population-weighted origins (WorldPop cells) to attractor destinations (OSM points of interest) using a distance-decay function: flow = attractor_weight × exp(-β × distance). Unlike centrality methods, they incorporate real land-use data and trip distribution, making them behavioural rather than purely structural.
+
 ![Gravity and demand model R² comparison](results/fig_gravity_barplot.png){#fig-barplot-gravity}
 
 @fig-barplot-gravity compares gravity-based pedestrian flow models incorporating WorldPop population origins and OSM POI attractor destinations with exponential distance decay.
@@ -388,6 +392,18 @@ display(Markdown(results_table(csd_df)))
 ```
 
 ### Performance
+
+```{python}
+#| echo: false
+#| label: tbl-performance-summary
+#| tbl-cap: "Runtime summary per tool: min, median, and max wall-clock seconds across all variants."
+#| output: asis
+perf = df.groupby('tool')['compute_time_s'].agg(['min', 'median', 'max']).round(1)
+for _, row in perf.iterrows():
+    print(f"  {row}")
+
+display(Markdown(perf.to_markdown()))
+```
 
 ![Computational performance: throughput and memory usage](results/fig3_performance.png){#fig-performance}
 
