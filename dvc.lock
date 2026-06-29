@@ -333,8 +333,8 @@ stages:
     deps:
     - path: README.qmd
       hash: md5
-      md5: 98cdddffb19711bae0c682d34760b8e2
-      size: 18195
+      md5: cb341faf6cdf1e504172313fafbd0dc8
+      size: 19337
     - path: appendix-other-tools.qmd
       hash: md5
       md5: 74ba1619c850d2a4cc392ceb039199ce
@@ -354,8 +354,8 @@ stages:
     outs:
     - path: README.md
       hash: md5
-      md5: dd1e11816d555d4ee59990685cb46cee
-      size: 13519
+      md5: 472b18e8fb47a371e0e5eae714080ced
+      size: 15028
     - path: results/fig1_barplot.png
       hash: md5
       md5: 8904f07b6935bd10f2a5c85aec8180df
