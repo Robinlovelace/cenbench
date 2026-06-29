@@ -9,6 +9,11 @@ from scipy.spatial import cKDTree
 
 from scripts.config import get_path
 
+# Add src/ to path and apply library compatibility monkeypatches
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
+from cenbench.utils.monkeypatch import apply_patches
+apply_patches()
+
 workspace = "/home/robin/github/robinlovelace/cenbench"
 sys.path.insert(0, os.path.join(workspace, "madina", "src"))
 from madina.zonal import Zonal

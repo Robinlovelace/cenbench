@@ -45,9 +45,6 @@ print(f"Sensors: {len(tel)}, matched: {int(m.sum())}")
 # ── Define top 4 tools for comparison ──
 # ── Load results CSVs ──
 results_df = pd.read_csv("results/leuven_results.csv")
-if os.path.exists("results/sdna_results.csv"):
-    sdna_results = pd.read_csv("results/sdna_results.csv")
-    results_df = pd.concat([results_df, sdna_results], ignore_index=True)
 
 # Find best variant for each tool
 def get_best_variant(tool_name, fallback_var, fallback_r2, fallback_r):

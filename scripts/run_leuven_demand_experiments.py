@@ -15,6 +15,11 @@ from scipy import stats
 from scipy.spatial import cKDTree
 import psutil
 
+# Add src/ to path and apply library compatibility monkeypatches
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
+from cenbench.utils.monkeypatch import apply_patches
+apply_patches()
+
 from madina.zonal import Zonal
 from scripts.config import get_path
 from madina.una import parallel_betweenness
@@ -97,6 +102,8 @@ def run_experiment(edges_utm, origins_utm, destinations_utm, tel_utm, params, na
         edge_gdf = results['edge_gdf']
     except Exception as e:
         print(f"  Error in betweenness: {e}")
+        import traceback
+        traceback.print_exc()
         return None
         
     elapsed = time.time() - t0
@@ -147,6 +154,13 @@ def run_experiment(edges_utm, origins_utm, destinations_utm, tel_utm, params, na
         "segments_per_sec": round(len(edge_gdf) / elapsed, 1) if elapsed > 0 else 0
     }
 
+def run_experiment_process(edges, origins, destinations, telr, exp, name, queue):
+    try:
+        res = run_experiment(edges, origins, destinations, telr, exp, name)
+        queue.put(res)
+    except Exception as e:
+        queue.put(e)
+
 def main():
     print("Loading data layers...")
     edges = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_walk_edges.gpkg'))).to_crs(CRS_UTM)
@@ -180,11 +194,46 @@ def main():
         {"name": "wp_r3000_beta002_all",  "search_radius": 3000, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.002},
     ]
     
+    import multiprocessing
+    MAX_RUNTIME = 60 # 1 minute max runtime for fast mode
     new_results = []
+    
     for exp in experiments:
-        res = run_experiment(edges, origins, destinations, telr, exp, exp["name"])
-        if res:
+        queue = multiprocessing.Queue()
+        p = multiprocessing.Process(
+            target=run_experiment_process,
+            args=(edges, origins, destinations, telr, exp, exp["name"], queue)
+        )
+        t0 = time.time()
+        p.start()
+        p.join(timeout=MAX_RUNTIME)
+        
+        if p.is_alive():
+            elapsed = time.time() - t0
+            print(f"  Variant {exp['name']} timed out after {elapsed:.1f}s (threshold: {MAX_RUNTIME}s). Terminating process...")
+            p.terminate()
+            p.join()
+            
+            res = {
+                "tool": "madina_worldpop",
+                "variant": exp["name"],
+                "r_squared": np.nan,
+                "pearson_r": np.nan,
+                "spearman_r": np.nan,
+                "compute_time_s": round(elapsed, 2),
+                "n_matched": 22,
+                "n_obs": 22,
+                "peak_memory_mb": np.nan,
+                "segments_per_sec": np.nan
+            }
             new_results.append(res)
+        else:
+            if not queue.empty():
+                res = queue.get()
+                if isinstance(res, Exception):
+                    print(f"  Error in process for {exp['name']}: {res}")
+                elif res:
+                    new_results.append(res)
             
     # Save results using merge helper
     df_new = pd.DataFrame(new_results)
@@ -193,17 +242,22 @@ def main():
     print(f"\nSaved {len(df_new)} results to {RESULTS_FILE}")
     
     # Output the best experiment by R2
-    best_idx = df_new["r_squared"].idxmax()
-    best_row = df_new.loc[best_idx]
-    print("\n" + "="*50)
-    print("BEST EXPERIMENT RESULTS:")
-    print("="*50)
-    print(f"Variant: {best_row['variant']}")
-    print(f"R-squared: {best_row['r_squared']:.6f}")
-    print(f"Pearson r: {best_row['pearson_r']:.6f}")
-    print(f"Spearman r: {best_row['spearman_r']:.6f}")
-    print(f"Matched: {best_row['n_matched']}")
-    print("="*50 + "\n")
+    if df_new["r_squared"].notna().any():
+        best_idx = df_new["r_squared"].idxmax()
+        best_row = df_new.loc[best_idx]
+        print("\n" + "="*50)
+        print("BEST EXPERIMENT RESULTS:")
+        print("="*50)
+        print(f"Variant: {best_row['variant']}")
+        print(f"R-squared: {best_row['r_squared']:.6f}")
+        print(f"Pearson r: {best_row['pearson_r']:.6f}")
+        print(f"Spearman r: {best_row['spearman_r']:.6f}")
+        print(f"Matched: {best_row['n_matched']}")
+        print("="*50 + "\n")
+    else:
+        print("\n" + "="*50)
+        print("NO VALID R-SQUARED RESULTS (ALL EXPERIMENTS TIMED OUT OR RETURNED NA)")
+        print("="*50 + "\n")
 
 if __name__ == "__main__":
     main()

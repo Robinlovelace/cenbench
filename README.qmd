@@ -72,9 +72,6 @@ def best_row(data):
 
 
 df = load_results("results/leuven_results.csv")
-if os.path.exists("results/sdna_results.csv"):
-    sdna_df_raw = load_results("results/sdna_results.csv")
-    df = pd.concat([df, sdna_df_raw], ignore_index=True)
 
 # ── Variant culling: keep informative subset (~10 variants) ──
 KEEP_VARIANTS = {
