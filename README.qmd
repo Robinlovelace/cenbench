@@ -189,6 +189,8 @@ This study benchmarks five tools for pedestrian flow modelling using Telraam sen
 
 > **⚠ Work in progress** — This manuscript is actively evolving. Contributions, issues, and forks are welcome at [github.com/Robinlovelace/cenbench](https://github.com/Robinlovelace/cenbench).
 
+[![Docker](https://github.com/Robinlovelace/cenbench/actions/workflows/docker-build.yml/badge.svg)](https://github.com/Robinlovelace/cenbench/pkgs/container/cenbench)
+
 ## Introduction
 
 Pedestrian flow modelling is central to walkability analysis, transport planning, and urban design. Three approaches exist:
@@ -415,7 +417,7 @@ display(Markdown(perf.to_markdown()))
 4. Angular (simplest-path) analysis with cityseer `segment_centrality`
 5. Add covariates: POI density, population, transit stops
 
-## Appendix {.unnumbered}
+## Appendices {.unnumbered}
 
 <details>
 <summary>Reproducibility: DVC pipeline, setup, and version details</summary>
