@@ -1,28 +1,31 @@
 stages:
   prepare_demand:
-    cmd: PYTHONPATH=. .venv/bin/python scripts/prepare_leuven_demand.py
+    cmd: PYTHONPATH=. .venv/bin/python scripts/prepare_demand.py --city leuven
     deps:
-      - scripts/prepare_leuven_demand.py
+      - scripts/prepare_demand.py
       - scripts/config.py
+      - config/cities.yaml
     outs:
       - data/leuven_worldpop_origins.geojson
       - data/leuven_attractors.geojson
 
   run_benchmarks:
     cmd: >-
-      PYTHONPATH=. .venv/bin/python scripts/bench_leuven.py &&
+      PYTHONPATH=. .venv/bin/python scripts/bench_city.py --city leuven &&
       PYTHONPATH=. .venv/bin/python scripts/run_cityseer_demand_experiments.py &&
-      PYTHONPATH=. .venv/bin/python scripts/run_leuven_demand_experiments.py &&
+      PYTHONPATH=. .venv/bin/python scripts/run_demand_experiments.py --city leuven &&
       PYTHONPATH=. .venv/bin/python scripts/bench_sdna.py &&
-      PYTHONPATH=. .venv/bin/python scripts/generate_interactive_map.py
+      PYTHONPATH=. .venv/bin/python scripts/generate_interactive_map.py --city leuven
     deps:
-      - scripts/bench_leuven.py
+      - scripts/bench_city.py
       - scripts/run_cityseer_demand_experiments.py
-      - scripts/run_leuven_demand_experiments.py
+      - scripts/run_demand_experiments.py
       - scripts/bench_sdna.py
       - scripts/generate_interactive_map.py
       - scripts/merge_results.py
       - scripts/config.py
+      - config/cities.yaml
+      - scripts/utils/helpers.py
       - data/leuven_walk_edges.gpkg
       - data/leuven_telraam_pedestrians_4326.geojson
       - data/leuven_worldpop_origins.geojson
@@ -30,19 +33,20 @@ stages:
     outs:
       - results/leuven_results.csv
       - results/cityseer_demand_best_predictions.csv
-      - results/madina_worldpop_best_predictions.csv
+      - results/leuven_best_predictions.csv
       - results/sdna_best_predictions.csv
       - results/sdna_results.csv
       - leuven-map-cityseer-demand.html
       - leuven-map.html
 
   generate_plots:
-    cmd: PYTHONPATH=. .venv/bin/python scripts/fig_input_datasets.py && PYTHONPATH=. .venv/bin/python scripts/fig_option_a.py
+    cmd: PYTHONPATH=. .venv/bin/python scripts/fig_input_datasets.py --city leuven && PYTHONPATH=. .venv/bin/python scripts/fig_option_a.py --city leuven
     deps:
       - scripts/fig_input_datasets.py
       - scripts/fig_option_a.py
       - scripts/config.py
-      - results/madina_worldpop_best_predictions.csv
+      - config/cities.yaml
+      - results/leuven_best_predictions.csv
       - results/cityseer_demand_best_predictions.csv
       - results/sdna_best_predictions.csv
 

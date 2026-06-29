@@ -1,25 +1,29 @@
 schema: '2.0'
 stages:
   prepare_demand:
-    cmd: PYTHONPATH=. .venv/bin/python scripts/prepare_leuven_demand.py
+    cmd: PYTHONPATH=. .venv/bin/python scripts/prepare_demand.py --city leuven
     deps:
+    - path: config/cities.yaml
+      hash: md5
+      md5: 48a912d57e6b5ffad6cee1b81d03c061
+      size: 700
     - path: scripts/config.py
       hash: md5
-      md5: 2043848db54d156cccece7025547291e
-      size: 815
-    - path: scripts/prepare_leuven_demand.py
+      md5: d435dced50faa92da96bd22bc442be81
+      size: 1305
+    - path: scripts/prepare_demand.py
       hash: md5
-      md5: 6d4fa266db4666c11de5a3800a571e6c
-      size: 9202
+      md5: 9e6e185b3e6d8f1671bb30eb2f12e4d5
+      size: 9268
     outs:
     - path: data/leuven_attractors.geojson
       hash: md5
-      md5: 5d9baa17fc690c4ea7ad339b00cbc56b
-      size: 155957
+      md5: 43975c0f76a751eafd91d1af210eb190
+      size: 556
     - path: data/leuven_worldpop_origins.geojson
       hash: md5
-      md5: 0bb365ebdfc40345274e149e845ac463
-      size: 473509
+      md5: f27b2225657688f3d2d79c85ca4f6e09
+      size: 95575
   bench_leuven:
     cmd: PYTHONPATH=. .venv/bin/python scripts/bench_leuven.py
     deps:

@@ -1,36 +1,37 @@
 #!/usr/bin/env python3
 import os
 import sys
-import json
+import argparse
 import numpy as np
 import pandas as pd
 import geopandas as gpd
 from scipy.spatial import cKDTree
 
-from scripts.config import get_path
-
-workspace = "/home/robin/github/robinlovelace/cenbench"
-sys.path.insert(0, os.path.join(workspace, "madina", "src"))
+from scripts.config import get_path, get_city_config
 from madina.zonal import Zonal
 from madina.una import parallel_betweenness
+from scripts.utils.helpers import filter_stubs, match_sensors_to_edges
 
-DATA_DIR = os.path.join(workspace, "data")
-RESULTS_DIR = os.path.join(workspace, "results")
-CRS_UTM = 32631
+DATA_DIR = "data"
+RESULTS_DIR = "results"
+os.makedirs(RESULTS_DIR, exist_ok=True)
 MATCH_DIST = 200
 
-def run_simulation_and_generate_html():
-    print("1. Loading validation sensors...", flush=True)
-    telr = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_telraam_pedestrians_4326.geojson'))).to_crs(CRS_UTM)
+def run_simulation_and_generate_html(city):
+    cfg = get_city_config(city)
+    crs_project = cfg["crs_project"]
+    
+    print(f"1. Loading validation sensors for {city}...", flush=True)
+    telr = gpd.read_file(get_path(cfg["sensors_file"])).to_crs(crs_project)
     tel_xy = np.array([(g.x, g.y) for g in telr.geometry])
     tel_ped = telr['avg_daily_pedestrians'].values.astype(float)
     
     print("2. Loading walk network edges...", flush=True)
-    edges = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_walk_edges.gpkg'))).to_crs(CRS_UTM)
+    edges = gpd.read_file(get_path(cfg["edges_file"])).to_crs(crs_project)
     
     print("3. Loading demand data...", flush=True)
-    origins = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_worldpop_origins.geojson'))).to_crs(CRS_UTM)
-    destinations = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_attractors.geojson'))).to_crs(CRS_UTM)
+    origins = gpd.read_file(get_path(cfg["origins_file"])).to_crs(crs_project)
+    destinations = gpd.read_file(get_path(cfg["destinations_file"])).to_crs(crs_project)
     
     print("4. Running best gravity simulation (wp_r1500_beta002_all)...", flush=True)
     z = Zonal()
@@ -60,30 +61,19 @@ def run_simulation_and_generate_html():
     )
     edge_gdf = results['edge_gdf']
     
-    # Identify and flag stubs in zonal network to filter them or color them differently
-    deg_z = dict(z.network.light_graph.degree())
-    is_stub_z = []
-    for idx, row in edge_gdf.iterrows():
-        u_deg = deg_z.get(row['start'], 0)
-        v_deg = deg_z.get(row['end'], 0)
-        if u_deg <= 1 or v_deg <= 1 or row['length'] < 15.0:
-            is_stub_z.append(True)
-        else:
-            is_stub_z.append(False)
-    edge_gdf['is_stub'] = is_stub_z
+    # Identify and flag stubs in zonal network using helper
+    edge_gdf['is_stub'] = False
+    non_stub_gdf = filter_stubs(edge_gdf, z.network.light_graph)
+    edge_gdf.loc[~edge_gdf.index.isin(non_stub_gdf.index), 'is_stub'] = True
     
-    # Associate each sensor with its matched flow value for rich visualization in the popups
-    filtered_gdf = edge_gdf[~edge_gdf['is_stub']].copy()
-    ec_filt = np.array([(g.x, g.y) for g in filtered_gdf.geometry.centroid])
-    tree_filt = cKDTree(ec_filt)
-    d_filt, i_filt = tree_filt.query(tel_xy)
-    m_filt = d_filt <= MATCH_DIST
+    # Associate each sensor with its matched flow value using helper
+    m_filt, i_filt, d_filt = match_sensors_to_edges(non_stub_gdf, telr, MATCH_DIST)
     
     telr['matched_flow'] = 0.0
     telr['matched_dist'] = 999.0
     for idx in range(len(telr)):
         if m_filt[idx]:
-            matched_edge = filtered_gdf.iloc[i_filt[idx]]
+            matched_edge = non_stub_gdf.iloc[i_filt[idx]]
             telr.loc[idx, 'matched_flow'] = float(matched_edge['betweenness'])
             telr.loc[idx, 'matched_dist'] = float(d_filt[idx])
             
@@ -91,7 +81,7 @@ def run_simulation_and_generate_html():
     pd.DataFrame({
         "observed": tel_ped,
         "predicted": telr["matched_flow"].values
-    }).to_csv(os.path.join(RESULTS_DIR, "madina_worldpop_best_predictions.csv"), index=False)
+    }).to_csv(os.path.join(RESULTS_DIR, f"{city}_best_predictions.csv"), index=False)
             
     # Reproject to WGS84 (EPSG:4326) for Leaflet
     print("5. Reprojecting layers to WGS84...", flush=True)
@@ -99,7 +89,6 @@ def run_simulation_and_generate_html():
     telr_4326 = telr.to_crs(epsg=4326)
     
     # To keep file size small, let's round coordinates to 5 decimals and select key columns
-    # We can round geometries by applying a custom function
     def round_coords(geom):
         if geom is None:
             return None
@@ -114,13 +103,10 @@ def run_simulation_and_generate_html():
     telr_4326['geometry'] = telr_4326['geometry'].apply(round_coords)
     
     # Keep only columns we need for visualization to save space
-    # For edges: betweenness, length, highway, is_stub
     edge_cols = ['betweenness', 'length', 'highway', 'is_stub', 'geometry']
-    # Filter columns that actually exist
     edge_cols = [c for c in edge_cols if c in edge_gdf_4326.columns]
     edges_to_save = edge_gdf_4326[edge_cols].copy()
     
-    # For sensors: segment_id, avg_daily_pedestrians, matched_flow, matched_dist
     sensor_cols = ['segment_id', 'avg_daily_pedestrians', 'matched_flow', 'matched_dist', 'geometry']
     sensor_cols = [c for c in sensor_cols if c in telr_4326.columns]
     sensors_to_save = telr_4326[sensor_cols].copy()
@@ -136,7 +122,7 @@ def run_simulation_and_generate_html():
     html_template = """<!DOCTYPE html>
 <html>
 <head>
-    <title>Leuven Pedestrian Flow Map</title>
+    <title>{CITY_TITLE} Pedestrian Flow Map</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
@@ -157,7 +143,6 @@ def run_simulation_and_generate_html():
             width: 100vw;
         }
         
-        /* Glassmorphism containers */
         .glass-panel {
             background: rgba(15, 23, 42, 0.85);
             backdrop-filter: blur(12px);
@@ -222,7 +207,6 @@ def run_simulation_and_generate_html():
             margin-top: 2px;
         }
 
-        /* Sidebar info panel */
         .info-panel {
             position: absolute;
             bottom: 30px;
@@ -267,7 +251,6 @@ def run_simulation_and_generate_html():
             color: #f1f5f9;
         }
         
-        /* Map Legend */
         .map-legend {
             position: absolute;
             bottom: 30px;
@@ -315,7 +298,6 @@ def run_simulation_and_generate_html():
             box-shadow: 0 0 6px rgba(255, 51, 102, 0.6);
         }
         
-        /* Custom map controls */
         .map-controls {
             position: absolute;
             top: 20px;
@@ -348,7 +330,6 @@ def run_simulation_and_generate_html():
             border-color: rgba(255, 255, 255, 0.15);
         }
         
-        /* Popup Styling */
         .leaflet-popup-content-wrapper {
             background: rgba(15, 23, 42, 0.95) !important;
             backdrop-filter: blur(10px);
@@ -385,7 +366,6 @@ def run_simulation_and_generate_html():
             color: #e2e8f0;
         }
 
-        /* Tooltip styling */
         .leaflet-tooltip {
             background: #1e293b !important;
             color: #f1f5f9 !important;
@@ -396,7 +376,6 @@ def run_simulation_and_generate_html():
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3) !important;
         }
         
-        /* Adjust Leaflet zoom control style */
         .leaflet-bar {
             border: 1px solid rgba(255, 255, 255, 0.08) !important;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2) !important;
@@ -419,10 +398,9 @@ def run_simulation_and_generate_html():
 
     <div id="map"></div>
 
-    <!-- Title Panel -->
     <div class="glass-panel map-title">
-        <h1>Leuven Pedestrian Flow</h1>
-        <p>Pedestrian volume estimation for Leuven walk network. Calculated using the best-performing Gravity Model (WorldPop demand origins to OSM attractors, radius 2000m, beta 0.002).</p>
+        <h1>{CITY_TITLE} Pedestrian Flow</h1>
+        <p>Pedestrian volume estimation for {CITY_TITLE} walk network. Calculated using the best-performing Gravity Model (WorldPop demand origins to OSM attractors, radius 1500m, beta 0.002).</p>
         <div class="map-stats">
             <div class="stat-item">
                 <div class="stat-val">0.676</div>
@@ -433,17 +411,16 @@ def run_simulation_and_generate_html():
                 <div class="stat-lbl">Pearson r</div>
             </div>
             <div class="stat-item">
-                <div class="stat-val">19,118</div>
+                <div class="stat-val">{NUM_EDGES}</div>
                 <div class="stat-lbl">Edges</div>
             </div>
             <div class="stat-item">
-                <div class="stat-val">42</div>
+                <div class="stat-val">{NUM_SENSORS}</div>
                 <div class="stat-lbl">Sensors</div>
             </div>
         </div>
     </div>
 
-    <!-- Info Panel (Shows on Hover/Click) -->
     <div class="glass-panel info-panel" id="infoPanel">
         <div class="info-header" id="infoType">Street Segment</div>
         <div class="info-title" id="infoName">Nameless Street</div>
@@ -461,7 +438,6 @@ def run_simulation_and_generate_html():
         </div>
     </div>
 
-    <!-- Legend Panel -->
     <div class="glass-panel map-legend">
         <div class="legend-title">Legend</div>
         <div class="legend-scale">
@@ -477,48 +453,40 @@ def run_simulation_and_generate_html():
         </div>
     </div>
 
-    <!-- Map Controls (Basemap Switcher) -->
     <div class="map-controls">
         <div class="control-btn" id="basemapBtn" title="Switch Basemap Style">
-            <!-- Leaflet icon or SVG -->
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
         </div>
     </div>
 
     <script>
-        // Data injected from Python
         const edgesData = {EDGES_GEOJSON};
         const sensorsData = {SENSORS_GEOJSON};
         const maxFlow = {MAX_FLOW};
 
-        // Initialize Map
         const map = L.map('map', {
             zoomControl: false
         }).setView([50.879, 4.700], 14);
 
-        // Add standard zoom control at top-right
         L.control.zoom({
             position: 'topright'
         }).addTo(map);
 
-        // Basemaps
-        const darkBasemap = L.tileLayer('https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png', {
+        const darkBasemap = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
             subdomains: 'abcd',
             maxZoom: 20
         });
 
-        const lightBasemap = L.tileLayer('https://{{s}}.basemaps.cartocdn.com/rastertiles/voyager/{{z}}/{{x}}/{{y}}{{r}}.png', {
+        const lightBasemap = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
             subdomains: 'abcd',
             maxZoom: 20
         });
 
-        // Add default dark basemap
         darkBasemap.addTo(map);
         let currentBasemap = 'dark';
 
-        // Toggle Basemap function
         document.getElementById('basemapBtn').addEventListener('click', () => {
             if (currentBasemap === 'dark') {
                 map.removeLayer(darkBasemap);
@@ -533,19 +501,15 @@ def run_simulation_and_generate_html():
             }
         });
 
-        // Color Scale Interpolator (magma-like: dark blue -> magenta -> red -> orange -> yellow)
         function getColor(value) {
-            // Normalize value to 0-1
             const t = Math.max(0, Math.min(1, value / maxFlow));
-            
-            // Magma hex color interpolation points
             const colors = [
-                { r: 11, g: 4, b: 5 },       // 0.0 (Very dark purple)
-                { r: 59, g: 15, b: 112 },    // 0.2 (Purple)
-                { r: 140, g: 41, b: 129 },   // 0.4 (Magenta)
-                { r: 222, g: 73, b: 104 },   // 0.6 (Red-pink)
-                { r: 254, g: 159, b: 109 },  // 0.8 (Orange)
-                { r: 252, g: 253, b: 191 }   // 1.0 (Light yellow)
+                { r: 11, g: 4, b: 5 },
+                { r: 59, g: 15, b: 112 },
+                { r: 140, g: 41, b: 129 },
+                { r: 222, g: 73, b: 104 },
+                { r: 254, g: 159, b: 109 },
+                { r: 252, g: 253, b: 191 }
             ];
 
             const idx = t * (colors.length - 1);
@@ -563,19 +527,16 @@ def run_simulation_and_generate_html():
             return `rgb(${r}, ${g}, ${b})`;
         }
 
-        // Setup street network polylines
         const edgeLayer = L.geoJSON(edgesData, {
             style: function(feature) {
                 const flow = feature.properties.betweenness || 0;
                 const isStub = feature.properties.is_stub;
                 
-                // Styling parameters
                 let weight = 0.5;
                 let opacity = 0.3;
                 let color = '#555555';
 
                 if (flow > 0 && !isStub) {
-                    // linewdith scaling matching paper (sqrt scale)
                     weight = 0.5 + 5.5 * Math.sqrt(flow / maxFlow);
                     opacity = 0.4 + 0.5 * (flow / maxFlow);
                     color = getColor(flow);
@@ -606,7 +567,6 @@ def run_simulation_and_generate_html():
                             l.bringToFront();
                         }
                         
-                        // Show info in panel
                         const props = feature.properties;
                         const flowVal = props.betweenness || 0;
                         
@@ -657,12 +617,9 @@ def run_simulation_and_generate_html():
             }
         }).addTo(map);
 
-        // Setup validation sensors markers
         const sensorLayer = L.geoJSON(sensorsData, {
             pointToLayer: function(feature, latlng) {
                 const pedVal = feature.properties.avg_daily_pedestrians || 0;
-                
-                // Scale marker size based on actual count
                 const radius = Math.max(4, Math.min(22, Math.sqrt(pedVal) * 0.35));
                 
                 return L.circleMarker(latlng, {
@@ -700,8 +657,6 @@ def run_simulation_and_generate_html():
                     mouseout: function(e) {
                         sensorLayer.resetStyle(e.target);
                         document.getElementById('infoPanel').classList.remove('visible');
-                        
-                        // Restore original labels for infoPanel
                         document.getElementById('infoLengthRow').querySelector('.info-label').innerText = 'Segment Length:';
                         document.getElementById('infoExtraRow').querySelector('.info-label').innerText = 'Street Class:';
                     },
@@ -733,7 +688,6 @@ def run_simulation_and_generate_html():
             }
         }).addTo(map);
 
-        // Adjust map bounds to center on network
         if (edgesData.features.length > 0) {
             const bounds = edgeLayer.getBounds();
             map.fitBounds(bounds, { padding: [50, 50] });
@@ -743,17 +697,26 @@ def run_simulation_and_generate_html():
 </html>
 """
     
-    # Fill in template values
-    html_content = html_template.replace("{EDGES_GEOJSON}", edges_geojson_str)
+    city_title = city.capitalize()
+    html_content = html_template.replace("{CITY_TITLE}", city_title)
+    html_content = html_content.replace("{NUM_EDGES}", f"{len(edges):,}")
+    html_content = html_content.replace("{NUM_SENSORS}", f"{len(telr):,}")
+    html_content = html_content.replace("{EDGES_GEOJSON}", edges_geojson_str)
     html_content = html_content.replace("{SENSORS_GEOJSON}", sensors_geojson_str)
     html_content = html_content.replace("{MAX_FLOW}", f"{max_flow}")
     
-    out_html = os.path.join(workspace, "leuven-map.html")
+    out_html = f"{city}-map.html"
     with open(out_html, "w") as f:
         f.write(html_content)
         
     print(f"Interactive HTML map saved to: {out_html}", flush=True)
     print(f"File size: {os.path.getsize(out_html) / (1024 * 1024):.2f} MB", flush=True)
 
+def main():
+    parser = argparse.ArgumentParser(description="Generate interactive map for a specific city.")
+    parser.add_argument("--city", default="leuven", help="City name (e.g. leuven)")
+    args = parser.parse_args()
+    run_simulation_and_generate_html(args.city)
+
 if __name__ == '__main__':
-    run_simulation_and_generate_html()
+    main()

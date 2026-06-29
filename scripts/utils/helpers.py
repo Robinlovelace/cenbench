@@ -1,0 +1,49 @@
+import numpy as np
+import pandas as pd
+from scipy import stats
+from scipy.spatial import cKDTree
+
+def compute_metrics(observed, predicted):
+    """Compute R2, Pearson r, Spearman r for observed and predicted values."""
+    obs = np.array(observed, dtype=float)
+    pred = np.array(predicted, dtype=float)
+    mask = ~(np.isnan(obs) | np.isnan(pred))
+    obs, pred = obs[mask], pred[mask]
+    n = len(obs)
+    if n < 3 or np.all(pred == pred[0]):
+        return {"n": n, "r_squared": np.nan, "pearson_r": np.nan, "spearman_r": np.nan}
+    
+    r2 = stats.linregress(pred, obs).rvalue ** 2
+    pr, _ = stats.pearsonr(obs, pred)
+    sr, _ = stats.spearmanr(obs, pred)
+    
+    return {
+        "n": n,
+        "r_squared": float(r2),
+        "pearson_r": float(pr),
+        "spearman_r": float(sr)
+    }
+
+def filter_stubs(edge_gdf, graph, length_col="length", start_col="start", end_col="end", min_length=15.0):
+    """Identify and filter stubs (degree-1 nodes or short edges) in the network."""
+    degree = dict(graph.degree())
+    is_stub = []
+    for idx, row in edge_gdf.iterrows():
+        u_deg = degree.get(row[start_col], 0)
+        v_deg = degree.get(row[end_col], 0)
+        if u_deg <= 1 or v_deg <= 1 or row[length_col] < min_length:
+            is_stub.append(True)
+        else:
+            is_stub.append(False)
+    edge_gdf['is_stub'] = is_stub
+    return edge_gdf[~edge_gdf['is_stub']].copy()
+
+def match_sensors_to_edges(non_stub_gdf, tel_utm, match_dist=200):
+    """Snap sensors to nearest edge centroids and return matched indices, distances, and mask."""
+    edge_centroids = np.array([(g.x, g.y) for g in non_stub_gdf.geometry.centroid])
+    tel_xy = np.array([(g.x, g.y) for g in tel_utm.geometry])
+    
+    tree = cKDTree(edge_centroids)
+    dists, idxs = tree.query(tel_xy)
+    matched = dists <= match_dist
+    return matched, idxs, dists

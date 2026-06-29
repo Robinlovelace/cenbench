@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Download WorldPop population data and fetch OSM POI attractors for Leuven
+Download WorldPop population data and fetch OSM POI attractors for a city
 to create research-backed trip origins and destinations.
 """
 import os
 import sys
-import json
+import argparse
 import requests
 import geopandas as gpd
 import pandas as pd
@@ -14,26 +14,20 @@ import rasterio
 from rasterio.windows import from_bounds
 from shapely.geometry import Point
 
-from scripts.config import get_path
+from scripts.config import get_path, get_city_config, TEST_MODE
 
 DATA_DIR = "data"
 CACHE_DIR = "cache"
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(CACHE_DIR, exist_ok=True)
 
-# Bounding box of Leuven network in EPSG:4326 (with buffer)
-# min_lon, min_lat, max_lon, max_lat
-BBOX = (4.67, 50.85, 5.0, 50.91) # Extra buffer for snap alignment
-LEUVEN_BBOX = (4.6798, 50.8600, 4.7301, 50.9001)
-
-def download_worldpop():
-    url = "https://data.worldpop.org/GIS/Population/Global_2000_2020/2020/BEL/bel_ppp_2020.tif"
-    local_path = os.path.join(CACHE_DIR, "bel_ppp_2020.tif")
+def download_worldpop(url, local_filename):
+    local_path = os.path.join(CACHE_DIR, local_filename)
     if os.path.exists(local_path):
         print(f"WorldPop file already exists at {local_path}")
         return local_path
     
-    print(f"Downloading WorldPop Belgium population grid from {url}...")
+    print(f"Downloading WorldPop population grid from {url}...")
     r = requests.get(url, stream=True)
     r.raise_for_status()
     total_size = int(r.headers.get('content-length', 0))
@@ -50,19 +44,12 @@ def download_worldpop():
     print("\nDownload complete.")
     return local_path
 
-def process_origins(tif_path):
+def process_origins(tif_path, bbox, output_path):
     print("Processing WorldPop population origins...")
-    output_path = get_path(os.path.join(DATA_DIR, "leuven_worldpop_origins.geojson"))
     
-    # Open raster and crop to bounding box
     with rasterio.open(tif_path) as src:
-        # BBOX in EPSG:4326
-        left, bottom, right, top = LEUVEN_BBOX
-        
-        # Get window for the coordinates
+        left, bottom, right, top = bbox
         window = from_bounds(left, bottom, right, top, transform=src.transform)
-        
-        # Read the subset of data
         data = src.read(1, window=window)
         win_transform = src.window_transform(window)
         
@@ -71,9 +58,7 @@ def process_origins(tif_path):
         for r in range(rows):
             for c in range(cols):
                 val = data[r, c]
-                # Filter out nodata and zero population
                 if val > 0 and val != src.nodata:
-                    # Get geospatial coordinates of pixel center
                     lon, lat = win_transform * (c + 0.5, r + 0.5)
                     points.append({
                         "geometry": Point(lon, lat),
@@ -90,22 +75,21 @@ def process_origins(tif_path):
             crs="EPSG:4326"
         )
         
-        # Save to GeoJSON
         gdf.to_file(output_path, driver="GeoJSON")
         print(f"Saved {len(gdf)} population origin cells to {output_path}")
 
-def fetch_attractors():
-    print("Fetching Leuven trip attractors from OSM Overpass API...")
-    output_path = get_path(os.path.join(DATA_DIR, "leuven_attractors.geojson"))
+def fetch_attractors(overpass_bbox, output_path, city_name):
+    print(f"Fetching {city_name} trip attractors from OSM Overpass API...")
     
     # Overpass query to find key attractors
+    lat_min, lon_min, lat_max, lon_max = overpass_bbox
     overpass_query = f"""
     [out:json][timeout:90];
     (
-      node["amenity"~"university|hospital|school|cafe|restaurant|bar"](50.85, 4.66, 50.91, 4.74);
-      way["amenity"~"university|hospital|school"](50.85, 4.66, 50.91, 4.74);
-      node["shop"~"supermarket|mall|clothes|department_store|bakery"](50.85, 4.66, 50.91, 4.74);
-      node["railway"="station"](50.85, 4.66, 50.91, 4.74);
+      node["amenity"~"university|hospital|school|cafe|restaurant|bar"]({lat_min}, {lon_min}, {lat_max}, {lon_max});
+      way["amenity"~"university|hospital|school"]({lat_min}, {lon_min}, {lat_max}, {lon_max});
+      node["shop"~"supermarket|mall|clothes|department_store|bakery"]({lat_min}, {lon_min}, {lat_max}, {lon_max});
+      node["railway"="station"]({lat_min}, {lon_min}, {lat_max}, {lon_max});
     );
     out center;
     """
@@ -132,9 +116,8 @@ def fetch_attractors():
             print(f"Failed to fetch from {ep}: {e}")
             
     if data is None:
-        # Fallback to creating a synthetic set of attractors
         print("Using fallback synthetic attractors...")
-        create_synthetic_attractors()
+        create_synthetic_attractors(output_path)
         return
 
     elements = data.get("elements", [])
@@ -142,7 +125,6 @@ def fetch_attractors():
     
     features = []
     for el in elements:
-        # Determine location
         if el["type"] == "node":
             lon, lat = el["lon"], el["lat"]
         elif "center" in el:
@@ -156,9 +138,7 @@ def fetch_attractors():
         shop = tags.get("shop", "")
         railway = tags.get("railway", "")
         
-        # Categorize and assign attraction weight
-        # Research-based estimates of relative attraction strength for walking
-        weight = 5.0  # default weight (shops, cafes, bars, restaurants)
+        weight = 5.0
         category = "retail_dining"
         
         if railway == "station":
@@ -189,19 +169,14 @@ def fetch_attractors():
         
     if not features:
         print("No features extracted from OSM, creating synthetic fallbacks...")
-        create_synthetic_attractors()
+        create_synthetic_attractors(output_path)
         return
         
     gdf = gpd.GeoDataFrame.from_features(features, crs="EPSG:4326")
     gdf.to_file(output_path, driver="GeoJSON")
     print(f"Saved {len(gdf)} attractors to {output_path}")
 
-def create_synthetic_attractors():
-    output_path = get_path(os.path.join(DATA_DIR, "leuven_attractors.geojson"))
-    # Leuven train station (4.715, 50.881)
-    # KU Leuven city center (4.700, 50.878)
-    # UZ Leuven Hospital (4.678, 50.887)
-    # Central Square / Oude Markt (4.698, 50.879)
+def create_synthetic_attractors(output_path):
     synthetic = [
         {"name": "Leuven Train Station", "category": "transit_hub", "attractor_weight": 100.0, "lon": 4.7150, "lat": 50.8810},
         {"name": "KU Leuven Central Campus", "category": "university", "attractor_weight": 35.0, "lon": 4.7000, "lat": 50.8780},
@@ -221,17 +196,44 @@ def create_synthetic_attractors():
     gdf.to_file(output_path, driver="GeoJSON")
     print(f"Saved {len(gdf)} synthetic fallback attractors to {output_path}")
 
-if __name__ == "__main__":
-    from scripts.config import TEST_MODE
+def main():
+    parser = argparse.ArgumentParser(description="Prepare demand datasets for a city.")
+    parser.add_argument("--city", default="leuven", help="Name of the city to prepare (e.g. leuven)")
+    args = parser.parse_args()
+    
+    city = args.city
+    cfg = get_city_config(city)
+    
+    origins_file = get_path(cfg["origins_file"])
+    destinations_file = get_path(cfg["destinations_file"])
+    
     if TEST_MODE:
         import shutil
-        print("TEST_MODE is active: copying pre-clipped test demand files...")
-        shutil.copy("data/test_leuven_worldpop_origins.geojson", "data/leuven_worldpop_origins.geojson")
-        shutil.copy("data/test_leuven_attractors.geojson", "data/leuven_attractors.geojson")
-        print("Done copying test demand files.")
-        sys.exit(0)
+        print(f"TEST_MODE is active: copying pre-clipped test demand files for {city}...")
+        raw_origins = cfg["origins_file"]
+        raw_destinations = cfg["destinations_file"]
         
-    tif_path = download_worldpop()
-    process_origins(tif_path)
-    fetch_attractors()
-    print("Demand data preparation completed successfully!")
+        test_origins = os.path.join(os.path.dirname(raw_origins), f"test_{os.path.basename(raw_origins)}")
+        test_destinations = os.path.join(os.path.dirname(raw_destinations), f"test_{os.path.basename(raw_destinations)}")
+        
+        shutil.copy(test_origins, raw_origins)
+        shutil.copy(test_destinations, raw_destinations)
+        print("Done copying test demand files.")
+        return
+
+    # Check if WorldPop URL exists for this city
+    if "worldpop_url" in cfg and "worldpop_local_tif" in cfg:
+        tif_path = download_worldpop(cfg["worldpop_url"], cfg["worldpop_local_tif"])
+        process_origins(tif_path, cfg["bbox"], origins_file)
+    else:
+        print(f"WorldPop URL not configured for {city}, skipping origins preparation.")
+        
+    if "overpass_bbox" in cfg:
+        fetch_attractors(cfg["overpass_bbox"], destinations_file, city)
+    else:
+        print(f"Overpass BBOX not configured for {city}, skipping attractors preparation.")
+        
+    print(f"Demand data preparation for {city} completed successfully!")
+
+if __name__ == "__main__":
+    main()
