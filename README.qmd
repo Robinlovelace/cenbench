@@ -7,8 +7,8 @@ format:
   gfm:
     toc: true
     toc-depth: 3
-number-sections: true
-number-depth: 3
+number-sections: false
+number-depth: 0
 execute:
   warning: false
   message: false
