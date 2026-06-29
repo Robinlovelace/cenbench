@@ -403,7 +403,7 @@ display(Markdown(results_table(csd_df)))
 The benchmark suite is fully orchestrated using **DVC** (Data Version Control) to manage dependencies, execution caching, and outputs.
 
 #### 1. Setup the Environment
-Ensure you have the required dependencies installed (including Python packages and `sDNA+` CLI) by running:
+Ensure you have the required dependencies installed (including Python packages, the `sDNA+` CLI, and the pandas 3.0+/numpy 2.0+ compatible `madina` fork) by running:
 ```bash
 pip install -r requirements.txt
 ```
