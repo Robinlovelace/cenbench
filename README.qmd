@@ -203,9 +203,10 @@ Pedestrian flow modelling is central to walkability analysis, transport planning
 
 **sDNA+** [@cooper2020sdna] provides 3-d spatial network analysis via a C++ library with Python, QGIS, and command-line interfaces, supporting hybrid and angular metrics with OpenMP multi-threading.
 
-### 1.1 Related Work
+<!-- TODO: populate this section -->
+<!-- ### Related Work
 
-This study benchmarks network centrality and gravity-based pedestrian flow models using Telraam validation data from Leuven, Belgium.
+This study benchmarks network centrality and gravity-based pedestrian flow models using Telraam validation data from Leuven, Belgium. -->
 
 ### Input Datasets
 
