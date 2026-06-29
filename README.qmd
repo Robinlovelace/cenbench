@@ -75,7 +75,7 @@ df = load_results("results/leuven_results.csv")
 
 # ── Variant culling: keep informative subset (~10 variants) ──
 KEEP_VARIANTS = {
-    "cityseer": ["shortest_200m", "shortest_800m", "shortest_3200m", "segment_800m", "segment_1600m"],
+    "cityseer": ["shortest_200m", "shortest_800m", "shortest_3200m"],
     "madina": ["degree", "btw_weighted_200"],
     "madina_worldpop": [
         "wp_r3000_beta002_all",

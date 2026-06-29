@@ -78,34 +78,16 @@ def main():
             vals = result.iloc[n_i[n_m]][bc[0]].values.astype(float)
             m = compute_metrics(tel_ped[n_m], vals)
             t = time.time() - t0
-            all_results.append({
-                "tool": "cityseer", "variant": f"shortest_{dist}m",
-                "r_squared": m["r_squared"], "pearson_r": m["pearson_r"],
-                "spearman_r": m["spearman_r"],
-                "compute_time_s": round(t, 2), "n_matched": n_match, "n_obs": m["n"],
-                "peak_memory_mb": round(_process.memory_info().rss/(1024*1024), 1),
-                "segments_per_sec": round(len(edges_u)/t, 1) if t > 0 else 0,
-            })
-            print(f"  {dist}m: R²={m['r_squared']:.4f} r={m['pearson_r']:.4f} t={t:.1f}s", flush=True)
-
-        # Segment centrality (edge-level betweenness, better for edge-matched sensors)
-        if n_match >= 3:
-            t0 = time.time()
-            seg_result = cs_networks.segment_centrality(net_struct, nodes_df.copy(), distances=[800, 1600])
-            for dist_str in ["800", "1600"]:
-                bc = [c for c in seg_result.columns if "betweenness" in c.lower() and dist_str in c]
-                if not bc: continue
-                vals = seg_result.iloc[n_i[n_m]][bc[0]].values.astype(float)
-                m = compute_metrics(tel_ped[n_m], vals)
+            if m["n"] >= 3:
                 all_results.append({
-                    "tool": "cityseer", "variant": f"segment_{dist_str}m",
+                    "tool": "cityseer", "variant": f"shortest_{dist}m",
                     "r_squared": m["r_squared"], "pearson_r": m["pearson_r"],
                     "spearman_r": m["spearman_r"],
-                    "compute_time_s": round(time.time() - t0, 2), "n_matched": n_match, "n_obs": m["n"],
+                    "compute_time_s": round(t, 2), "n_matched": n_match, "n_obs": m["n"],
                     "peak_memory_mb": round(_process.memory_info().rss/(1024*1024), 1),
-                    "segments_per_sec": round(len(edges_u)/(time.time()-t0), 1) if time.time()-t0 > 0 else 0,
+                    "segments_per_sec": round(len(edges_u)/t, 1) if t > 0 else 0,
                 })
-                print(f"  segment_{dist_str}m: R²={m['r_squared']:.4f} r={m['pearson_r']:.4f}", flush=True)
+                print(f"  {dist}m: R²={m['r_squared']:.4f} r={m['pearson_r']:.4f} t={t:.1f}s", flush=True)
             
     # ═══════════ MADINA ═══════════
     print("── madina ──", flush=True)
