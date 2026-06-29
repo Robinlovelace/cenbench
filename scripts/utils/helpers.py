@@ -40,6 +40,12 @@ def filter_stubs(edge_gdf, graph, length_col="length", start_col="start", end_co
 
 def match_sensors_to_edges(non_stub_gdf, tel_utm, match_dist=200):
     """Snap sensors to nearest edge centroids and return matched indices, distances, and mask."""
+    if len(non_stub_gdf) == 0:
+        matched = np.zeros(len(tel_utm), dtype=bool)
+        idxs = np.zeros(len(tel_utm), dtype=int)
+        dists = np.full(len(tel_utm), np.inf)
+        return matched, idxs, dists
+
     edge_centroids = np.array([(g.x, g.y) for g in non_stub_gdf.geometry.centroid])
     tel_xy = np.array([(g.x, g.y) for g in tel_utm.geometry])
     

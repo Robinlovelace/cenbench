@@ -52,19 +52,17 @@ def run_simulation_and_generate_html(city):
         beta=0.002,
         num_cores=2,
         origin_weights=True,
-        origin_weight_attribute='population',
+        origin_weight_attribute='weight',
         closest_destination=False,
         destination_weights=True,
-        destination_weight_attribute='attractor_weight',
+        destination_weight_attribute='weight',
         light_graph=True,
         turn_penalty=False
     )
     edge_gdf = results['edge_gdf']
     
     # Identify and flag stubs in zonal network using helper
-    edge_gdf['is_stub'] = False
     non_stub_gdf = filter_stubs(edge_gdf, z.network.light_graph)
-    edge_gdf.loc[~edge_gdf.index.isin(non_stub_gdf.index), 'is_stub'] = True
     
     # Associate each sensor with its matched flow value using helper
     m_filt, i_filt, d_filt = match_sensors_to_edges(non_stub_gdf, telr, MATCH_DIST)

@@ -66,10 +66,10 @@ def main():
         beta=args.beta,
         num_cores=8,
         origin_weights=True,
-        origin_weight_attribute='population',
+        origin_weight_attribute='weight',
         closest_destination=args.closest_destination,
         destination_weights=True,
-        destination_weight_attribute='attractor_weight',
+        destination_weight_attribute='weight',
         light_graph=True,
         turn_penalty=False
     )
