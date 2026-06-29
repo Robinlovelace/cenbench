@@ -22,10 +22,6 @@ RUN git clone --branch build-linux-openmp --depth=1 \
 WORKDIR /src/sdna-plus
 
 RUN cd /src/sdna-plus && \
-    sed -i 's|#include <SDKDDKVer.h>|#ifdef _WINDOWS\n#include <SDKDDKVer.h>\n#endif|' sDNA/sdna_vs2008/targetver.h && \
-    sed -i '19s|// Windows Header|#ifdef _WINDOWS\n// Windows Header|' sDNA/sdna_vs2008/stdafx.h && \
-    sed -i '23a #else\n#include <dlfcn.h>\n#endif' sDNA/sdna_vs2008/stdafx.h && \
-    sed -i 's|IteratorTypeErasure\\any_iterator\\any_iterator.hpp|IteratorTypeErasure/any_iterator/any_iterator.hpp|' sDNA/sdna_vs2008/stdafx.h && \
     BOOST_INC=$(dpkg -L libboost1.83-dev | grep 'include/boost/version.hpp' | head -1 | sed 's|/boost/version.hpp||') && \
     SDNA_SRC="sDNA/sdna_vs2008" && MUPARSER_SRC="sDNA/muparser/drop/src" && \
     CXXFLAGS="-std=c++14 -O2 -fPIC -fopenmp -fpermissive -DNDEBUG -I${SDNA_SRC} -I${MUPARSER_SRC}/../include -I${BOOST_INC}" && \
