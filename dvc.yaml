@@ -60,6 +60,9 @@ stages:
       - results/leuven_results.csv
       - appendix-other-tools.qmd
     outs:
-      - README.md
-      - results/fig1_barplot.png
-      - results/fig_gravity_barplot.png
+      - README.md:
+          cache: false
+      - results/fig1_barplot.png:
+          cache: false
+      - results/fig_gravity_barplot.png:
+          cache: false
