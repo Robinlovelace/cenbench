@@ -43,7 +43,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     python3 python3-pip python3-venv \
     gdal-bin libgdal-dev libgeos-dev libspatialindex-dev \
     git curl wget ca-certificates \
-    r-base r-cran-optparse \
+    r-base r-cran-optparse pipx \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Quarto for report rendering
@@ -53,13 +53,11 @@ RUN wget -q https://github.com/quarto-dev/quarto-cli/releases/download/v1.8.27/q
 # sDNA+ .so from builder
 COPY --from=sdna-builder /build/sdna_vs2008.so /opt/sdna/lib/sdna_vs2008.so
 ENV SDNADLL=/opt/sdna/lib/sdna_vs2008.so
+ENV PATH="${PATH}:${HOME}/.local/bin"
+RUN pipx install sdna_plus --force
 
 WORKDIR /workspace
 COPY . .
-
-# pipx + sDNA+ Python CLI
-RUN python3 -m pip install --no-cache-dir pipx \
-    && pipx install sdna_plus --force
 
 # venv + all Python deps
 RUN python3 -m venv .venv && \
