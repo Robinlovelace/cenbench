@@ -1,6 +1,6 @@
 stages:
   prepare_demand:
-    cmd: PYTHONPATH=. .venv/bin/python scripts/prepare_demand.py --city leuven
+    cmd: PYTHONPATH=. python scripts/prepare_demand.py --city leuven
     deps:
       - scripts/prepare_demand.py
       - scripts/config.py
@@ -10,7 +10,7 @@ stages:
       - data/leuven_attractors.geojson
 
   bench_centrality:
-    cmd: PYTHONPATH=. .venv/bin/python scripts/bench_centrality.py --city leuven
+    cmd: PYTHONPATH=. python scripts/bench_centrality.py --city leuven
     deps:
       - scripts/bench_centrality.py
       - scripts/config.py
@@ -22,7 +22,7 @@ stages:
       - results/leuven_centrality_results.csv
 
   bench_cityseer_demand:
-    cmd: PYTHONPATH=. .venv/bin/python scripts/run_cityseer_demand_experiments.py
+    cmd: PYTHONPATH=. python scripts/run_cityseer_demand_experiments.py
     deps:
       - scripts/run_cityseer_demand_experiments.py
       - scripts/config.py
@@ -38,7 +38,7 @@ stages:
       - leuven-map-cityseer-demand.html
 
   bench_madina_gravity:
-    cmd: PYTHONPATH=. .venv/bin/python scripts/run_madina_demand_experiments.py --city leuven
+    cmd: PYTHONPATH=. python scripts/run_madina_demand_experiments.py --city leuven
     deps:
       - scripts/run_madina_demand_experiments.py
       - scripts/run_single_experiment.py
@@ -53,7 +53,7 @@ stages:
       - results/leuven_madina_worldpop_results.csv
 
   bench_sdna:
-    cmd: PYTHONPATH=. .venv/bin/python scripts/bench_sdna.py
+    cmd: PYTHONPATH=. python scripts/bench_sdna.py
     deps:
       - scripts/bench_sdna.py
       - scripts/config.py
@@ -66,7 +66,7 @@ stages:
       - results/sdna_best_predictions.csv
 
   generate_interactive_map:
-    cmd: PYTHONPATH=. .venv/bin/python scripts/generate_interactive_map.py --city leuven
+    cmd: PYTHONPATH=. python scripts/generate_interactive_map.py --city leuven
     deps:
       - scripts/generate_interactive_map.py
       - scripts/config.py
@@ -79,7 +79,7 @@ stages:
       - results/leuven_best_predictions.csv
 
   merge_results:
-    cmd: PYTHONPATH=. .venv/bin/python scripts/merge_all.py
+    cmd: PYTHONPATH=. python scripts/merge_all.py
     deps:
       - scripts/merge_all.py
       - results/leuven_centrality_results.csv
@@ -90,7 +90,7 @@ stages:
       - results/leuven_results.csv
 
   generate_plots:
-    cmd: PYTHONPATH=. .venv/bin/python scripts/fig_input_datasets.py --city leuven && PYTHONPATH=. .venv/bin/python scripts/fig_tool_comparison.py --city leuven
+    cmd: PYTHONPATH=. python scripts/fig_input_datasets.py --city leuven && PYTHONPATH=. python scripts/fig_tool_comparison.py --city leuven
     deps:
       - scripts/fig_input_datasets.py
       - scripts/fig_tool_comparison.py
