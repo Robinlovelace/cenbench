@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Copy data from image
-        run: cp -r /workspace/data/. ./data/
+        run: mkdir -p ./data/ && cp -r /workspace/data/. ./data/
 
       - name: Run DVC pipeline
         run: dvc repro
