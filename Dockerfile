@@ -40,6 +40,10 @@ LABEL org.opencontainers.image.licenses="CC-BY-4.0"
 RUN wget -q https://github.com/quarto-dev/quarto-cli/releases/download/v1.8.27/quarto-1.8.27-linux-amd64.deb \
     && dpkg -i quarto-1.8.27-linux-amd64.deb && rm quarto-1.8.27-linux-amd64.deb
 
+# pipx for sDNA+ CLI
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y pipx \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 # sDNA+ .so and CLI from builder
 COPY --from=sdna-builder /build/sdna_vs2008.so /opt/sdna/lib/sdna_vs2008.so
 ENV SDNADLL=/opt/sdna/lib/sdna_vs2008.so
