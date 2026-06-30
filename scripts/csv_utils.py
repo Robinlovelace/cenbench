@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Uniform CSV merge helper for all benchmark scripts.
 Usage:
-    from scripts.merge_results import merge_to_csv
+    from scripts.csv_utils import merge_to_csv
     merge_to_csv("cityseer", new_rows, "results/leuven_results.csv")
 """
 import pandas as pd

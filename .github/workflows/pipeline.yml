@@ -33,4 +33,4 @@ jobs:
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "Auto-update README.md and results [skip ci]"
-          file_pattern: README.md dvc.lock 'results/*.csv' 'results/*.png'
+          file_pattern: README.md dvc.lock results/*.csv results/*.png

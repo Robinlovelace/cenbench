@@ -10,9 +10,9 @@ stages:
       - data/leuven_attractors.geojson
 
   bench_centrality:
-    cmd: PYTHONPATH=. .venv/bin/python scripts/bench_city.py --city leuven
+    cmd: PYTHONPATH=. .venv/bin/python scripts/bench_centrality.py --city leuven
     deps:
-      - scripts/bench_city.py
+      - scripts/bench_centrality.py
       - scripts/config.py
       - config/cities.yaml
       - scripts/utils/helpers.py
@@ -38,9 +38,9 @@ stages:
       - leuven-map-cityseer-demand.html
 
   bench_madina_gravity:
-    cmd: PYTHONPATH=. .venv/bin/python scripts/run_demand_experiments.py --city leuven
+    cmd: PYTHONPATH=. .venv/bin/python scripts/run_madina_demand_experiments.py --city leuven
     deps:
-      - scripts/run_demand_experiments.py
+      - scripts/run_madina_demand_experiments.py
       - scripts/run_single_experiment.py
       - scripts/config.py
       - config/cities.yaml
@@ -90,10 +90,10 @@ stages:
       - results/leuven_results.csv
 
   generate_plots:
-    cmd: PYTHONPATH=. .venv/bin/python scripts/fig_input_datasets.py --city leuven && PYTHONPATH=. .venv/bin/python scripts/fig_option_a.py --city leuven
+    cmd: PYTHONPATH=. .venv/bin/python scripts/fig_input_datasets.py --city leuven && PYTHONPATH=. .venv/bin/python scripts/fig_tool_comparison.py --city leuven
     deps:
       - scripts/fig_input_datasets.py
-      - scripts/fig_option_a.py
+      - scripts/fig_tool_comparison.py
       - scripts/config.py
       - config/cities.yaml
       - results/leuven_best_predictions.csv

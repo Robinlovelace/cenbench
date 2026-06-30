@@ -204,7 +204,7 @@ stages:
       size: 754854
   generate_plots:
     cmd: PYTHONPATH=. .venv/bin/python scripts/fig_input_datasets.py --city 
-      leuven && PYTHONPATH=. .venv/bin/python scripts/fig_option_a.py --city 
+      leuven && PYTHONPATH=. .venv/bin/python scripts/fig_tool_comparison.py --city 
       leuven
     deps:
     - path: config/cities.yaml
@@ -231,14 +231,14 @@ stages:
       hash: md5
       md5: 9514031d98d077f54c25f1033aa397fd
       size: 3817
-    - path: scripts/fig_option_a.py
+    - path: scripts/fig_tool_comparison.py
       hash: md5
       md5: c4b1a0c1843d148344405ce5fc7cf40d
       size: 8039
   run_benchmarks:
-    cmd: PYTHONPATH=. .venv/bin/python scripts/bench_city.py --city leuven && 
+    cmd: PYTHONPATH=. .venv/bin/python scripts/bench_centrality.py --city leuven && 
       PYTHONPATH=. .venv/bin/python scripts/run_cityseer_demand_experiments.py 
-      && PYTHONPATH=. .venv/bin/python scripts/run_demand_experiments.py --city 
+      && PYTHONPATH=. .venv/bin/python scripts/run_madina_demand_experiments.py --city 
       leuven && PYTHONPATH=. .venv/bin/python scripts/bench_sdna.py && 
       PYTHONPATH=. .venv/bin/python scripts/generate_interactive_map.py --city 
       leuven
@@ -263,7 +263,7 @@ stages:
       hash: md5
       md5: 0bb365ebdfc40345274e149e845ac463
       size: 473509
-    - path: scripts/bench_city.py
+    - path: scripts/bench_centrality.py
       hash: md5
       md5: c2dd6abe1020b89b8f43f4a15cf0f826
       size: 7341
@@ -279,7 +279,7 @@ stages:
       hash: md5
       md5: bbceca5a09938954d6d3bb6f7f27846e
       size: 28438
-    - path: scripts/merge_results.py
+    - path: scripts/csv_utils.py
       hash: md5
       md5: 3bf194b8ca5e6d9d8ace813e1992e002
       size: 1049
@@ -287,7 +287,7 @@ stages:
       hash: md5
       md5: 8f36a220a28c2b10a9f49412f71c782b
       size: 32493
-    - path: scripts/run_demand_experiments.py
+    - path: scripts/run_madina_demand_experiments.py
       hash: md5
       md5: db304923b261ae8314ae8ee23d23b4bf
       size: 6130
@@ -365,7 +365,7 @@ stages:
       md5: ee1b503bc8fe9b6994db216d222dcf13
       size: 75549
   bench_centrality:
-    cmd: PYTHONPATH=. .venv/bin/python scripts/bench_city.py --city leuven
+    cmd: PYTHONPATH=. .venv/bin/python scripts/bench_centrality.py --city leuven
     deps:
     - path: config/cities.yaml
       hash: md5
@@ -379,7 +379,7 @@ stages:
       hash: md5
       md5: ab62ecb68ab3b3be6534c8f0d90f8ca0
       size: 4882432
-    - path: scripts/bench_city.py
+    - path: scripts/bench_centrality.py
       hash: md5
       md5: b428551ba3e9ae10849795637a802b58
       size: 7416
@@ -397,7 +397,7 @@ stages:
       md5: 0445e2845599c9b1610b41ed0e81a867
       size: 855
   bench_madina_gravity:
-    cmd: PYTHONPATH=. .venv/bin/python scripts/run_demand_experiments.py --city 
+    cmd: PYTHONPATH=. .venv/bin/python scripts/run_madina_demand_experiments.py --city 
       leuven
     deps:
     - path: config/cities.yaml
@@ -424,7 +424,7 @@ stages:
       hash: md5
       md5: e15826ebf21d825d512fb46010eb2460
       size: 1306
-    - path: scripts/run_demand_experiments.py
+    - path: scripts/run_madina_demand_experiments.py
       hash: md5
       md5: cdfe0adcaa0240535708f7a65ea70ec6
       size: 6146

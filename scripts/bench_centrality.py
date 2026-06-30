@@ -18,6 +18,7 @@ from cityseer.metrics import networks as cs_networks
 
 from scripts.config import get_path, get_city_config
 from scripts.utils.helpers import compute_metrics
+from scripts.csv_utils import merge_to_csv
 
 _process = psutil.Process()
 MATCH_DIST = 200
@@ -160,11 +161,7 @@ def main():
             print(f"  btw_{k}: R²={m['r_squared']:.4f} r={m['pearson_r']:.4f} t={t:.1f}s", flush=True)
             
     # SAVE (merge per tool)
-    from scripts.merge_results import merge_to_csv
     results_path = f"{RESULTS_DIR}/{city}_centrality_results.csv"
-    
-    # If the file already exists, we should clear it or append
-    # merge_to_csv clears and merges for the tool
     df = pd.DataFrame(all_results)
     cs_rows = df[df["tool"] == "cityseer"]
     md_rows = df[df["tool"] == "madina"]

@@ -13,7 +13,7 @@ import pandas as pd
 import geopandas as gpd
 
 from scripts.config import get_path, get_city_config
-from scripts.merge_results import merge_to_csv
+from scripts.csv_utils import merge_to_csv
 
 RESULTS_DIR = "results"
 MAX_RUNTIME = 75 # 1.25 minutes timeout per experiment

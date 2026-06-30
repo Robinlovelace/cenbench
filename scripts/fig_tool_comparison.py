@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Option A: 4 rows (top tools) × 2 cols (network map + stats/observed-vs-predicted scatter plots)."""
+"""Tool comparison figure: 4 rows (top tools) × 2 cols (network map + scatter plots)."""
 import os
 import sys
 import argparse
