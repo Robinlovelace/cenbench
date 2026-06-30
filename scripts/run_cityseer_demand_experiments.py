@@ -3,6 +3,7 @@ import os
 import sys
 import time
 import json
+import argparse
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -10,61 +11,16 @@ import networkx as nx
 from scipy import stats
 from scipy.spatial import cKDTree
 
-workspace = "/home/robin/github/robinlovelace/cenbench"
-sys.path.insert(0, os.path.join(workspace, "madina", "src"))
 from cityseer.tools import io
 from cityseer.metrics import networks as cs_networks
 
-from scripts.config import get_path
+from scripts.config import get_path, get_city_config
+from scripts.csv_utils import merge_to_csv
 
-DATA_DIR = os.path.join(workspace, "data")
-RESULTS_DIR = os.path.join(workspace, "results")
-RESULTS_FILE = os.path.join(RESULTS_DIR, "leuven_cityseer_demand_results.csv")
-CRS_UTM = 32631
+RESULTS_DIR = "results"
 MATCH_DIST = 200
 
-# 1. Load Validation Data (Telraam Sensors)
-print("Loading validation sensors...")
-telr = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_telraam_pedestrians_4326.geojson'))).to_crs(CRS_UTM)
-tel_xy = np.array([(g.x, g.y) for g in telr.geometry])
-tel_ped = telr['avg_daily_pedestrians'].values.astype(float)
 
-# 2. Load Network Edges & Demands
-print("Loading walk network edges and demand datasets...")
-edges = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_walk_edges.gpkg'))).to_crs(CRS_UTM)
-origins = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_worldpop_origins.geojson'))).to_crs(CRS_UTM)
-destinations = gpd.read_file(get_path(os.path.join(DATA_DIR, 'leuven_attractors.geojson'))).to_crs(CRS_UTM)
-
-# 3. Setup cityseer Primal Graph
-print("Building cityseer NetworkStructure...")
-G_cs = nx.MultiGraph()
-for idx, row in edges.iterrows():
-    c = list(row.geometry.coords)
-    if len(c) < 2: continue
-    sk = f"{c[0][0]:.1f}_{c[0][1]:.1f}"
-    ek = f"{c[-1][0]:.1f}_{c[-1][1]:.1f}"
-    G_cs.add_node(sk, x=c[0][0], y=c[0][1])
-    G_cs.add_node(ek, x=c[-1][0], y=c[-1][1])
-    G_cs.add_edge(sk, ek, geom=row.geometry, length=row.geometry.length)
-G_cs.graph["crs"] = CRS_UTM
-
-nodes_df, edges_df, net_struct = io.network_structure_from_nx(G_cs)
-edges_df = edges_df.rename_geometry('geometry')
-
-# Setup degrees and identify stubs in edges
-deg_cs = dict(G_cs.degree())
-edges_df['is_stub'] = edges_df['nx_start_node_key'].map(lambda x: deg_cs.get(x, 0) <= 1) | edges_df['nx_end_node_key'].map(lambda x: deg_cs.get(x, 0) <= 1) | (edges_df.geometry.length < 15.0)
-
-# Robust edge matching: centroids of non-stub edges
-edges_no_stubs = edges_df[~edges_df['is_stub']].copy()
-e_centroid_xy = np.array([(g.x, g.y) for g in edges_no_stubs.geometry.centroid])
-e_tree = cKDTree(e_centroid_xy)
-e_d, e_i = e_tree.query(tel_xy)
-e_m = e_d <= MATCH_DIST
-e_match = int(sum(e_m))
-print(f"Cityseer matched edges (excluding stubs): {e_match}")
-
-# Helper to compute metrics
 def compute_metrics(y_true, y_pred):
     mask = ~(np.isnan(y_true) | np.isnan(y_pred))
     n = int(sum(mask))
@@ -76,134 +32,7 @@ def compute_metrics(y_true, y_pred):
     sr, _ = stats.spearmanr(yp, yt)
     return {"r_squared": rv, "pearson_r": pr, "spearman_r": sr, "n": n}
 
-experiments = [
-    # Varying Search Radius
-    {"name": "cs_demand_r800_beta002_all", "radius": 800.0, "beta": 0.002, "closest": False},
-    {"name": "cs_demand_r1200_beta002_all", "radius": 1200.0, "beta": 0.002, "closest": False},
-    {"name": "cs_demand_r1600_beta002_all", "radius": 1600.0, "beta": 0.002, "closest": False},
-    {"name": "cs_demand_r2000_beta002_all", "radius": 2000.0, "beta": 0.002, "closest": False},
-    
-    # Varying Distance Decay Beta
-    {"name": "cs_demand_r1200_beta001_all", "radius": 1200.0, "beta": 0.001, "closest": False},
-    {"name": "cs_demand_r1200_beta004_all", "radius": 1200.0, "beta": 0.004, "closest": False},
-    {"name": "cs_demand_r2000_beta001_all", "radius": 2000.0, "beta": 0.001, "closest": False},
-    {"name": "cs_demand_r2000_beta004_all", "radius": 2000.0, "beta": 0.004, "closest": False},
-    
-    # Closest Destination Choice Logic
-    {"name": "cs_demand_r1200_beta002_closest", "radius": 1200.0, "beta": 0.002, "closest": True},
-    {"name": "cs_demand_r2000_beta002_closest", "radius": 2000.0, "beta": 0.002, "closest": True},
-]
 
-new_rows = []
-best_model_name = None
-best_r2 = -1.0
-best_model_nodes_gdf = None
-best_model_radius = 2000.0
-
-for exp in experiments:
-    print(f"Running Experiment: {exp['name']}...", flush=True)
-    t0 = time.time()
-    
-    # Compute demand centrality
-    res_nodes = cs_networks.betweenness_gravity_demand(
-        network_structure=net_struct,
-        nodes_gdf=nodes_df.copy(),
-        origins_gdf=origins,
-        destinations_gdf=destinations,
-        origin_weight_col="population",
-        destination_weight_col="attractor_weight",
-        search_radius=exp["radius"],
-        beta=exp["beta"],
-        closest_destination=exp["closest"],
-        max_snap_dist=500.0
-    )
-    t_elapsed = time.time() - t0
-    
-    flow_col = f"cc_betweenness_gravity_{int(exp['radius'])}"
-    
-    # Map node flows to edges
-    edges_df["betweenness"] = 0.0
-    for idx, row in edges_df.iterrows():
-        u_flow = res_nodes.loc[row["nx_start_node_key"], flow_col]
-        v_flow = res_nodes.loc[row["nx_end_node_key"], flow_col]
-        edges_df.loc[idx, "betweenness"] = (u_flow + v_flow) / 2.0
-        
-    # Extract values at matched edge indexes
-    edges_no_stubs = edges_df[~edges_df['is_stub']].copy()
-    pred_vals = edges_no_stubs.iloc[e_i[e_m]]["betweenness"].values.astype(float)
-    
-    m = compute_metrics(tel_ped[e_m], pred_vals)
-    print(f"  Result: R² = {m['r_squared']:.4f}, Pearson r = {m['pearson_r']:.4f}, Time = {t_elapsed:.3f}s", flush=True)
-    
-    new_rows.append({
-        "tool": "cityseer_demand",
-        "variant": exp["name"],
-        "r_squared": m["r_squared"],
-        "pearson_r": m["pearson_r"],
-        "spearman_r": m["spearman_r"],
-        "compute_time_s": round(t_elapsed, 3),
-        "n_matched": e_match,
-        "n_obs": m["n"],
-        "peak_memory_mb": 420.0, # Estimated peak RAM
-        "segments_per_sec": round(len(edges) / t_elapsed, 1) if t_elapsed > 0 else 0.0
-    })
-    
-    if m["r_squared"] > best_r2:
-        best_r2 = m["r_squared"]
-        best_model_name = exp["name"]
-        best_model_nodes_gdf = res_nodes
-        best_model_radius = exp["radius"]
-
-# Append to results file using merge helper
-from scripts.merge_results import merge_to_csv
-merge_to_csv("cityseer_demand", pd.DataFrame(new_rows), RESULTS_FILE)
-print(f"\nSaved results to {RESULTS_FILE}")
-
-# Create Leaflet interactive map for the best-performing model
-print(f"\nBest performing cityseer demand model: {best_model_name} with R² = {best_r2:.4f}")
-
-# Map edge flows from best nodes GDF
-# In cityseer, nodes carry the flow. We map node flows back to edges by taking the average of start/end node flows.
-best_flow_col = f"cc_betweenness_gravity_{int(best_model_radius)}"
-edges_df["betweenness"] = 0.0
-for idx, row in edges_df.iterrows():
-    u_flow = best_model_nodes_gdf.loc[row["nx_start_node_key"], best_flow_col]
-    v_flow = best_model_nodes_gdf.loc[row["nx_end_node_key"], best_flow_col]
-    edges_df.loc[idx, "betweenness"] = (u_flow + v_flow) / 2.0
-
-edges_gdf = gpd.GeoDataFrame(edges_df, geometry="geometry", crs=CRS_UTM)
-edges_gdf['length'] = edges_gdf.geometry.length
-
-# Identify stubs
-edges_gdf['is_stub'] = edges_gdf['nx_start_node_key'].map(lambda x: deg_cs.get(x, 0) <= 1) | edges_gdf['nx_end_node_key'].map(lambda x: deg_cs.get(x, 0) <= 1) | (edges_gdf['length'] < 15.0)
-
-# Match sensors for popups
-tel_xy_best = np.array([(g.x, g.y) for g in telr.geometry])
-filtered_edges = edges_gdf[~edges_gdf['is_stub']].copy()
-e_centroid_xy = np.array([(g.x, g.y) for g in filtered_edges.geometry.centroid])
-e_tree = cKDTree(e_centroid_xy)
-d_e, i_e = e_tree.query(tel_xy_best)
-e_m = d_e <= MATCH_DIST
-
-telr['matched_flow'] = 0.0
-telr['matched_dist'] = 999.0
-for idx in range(len(telr)):
-    if e_m[idx]:
-        matched_edge = filtered_edges.iloc[i_e[idx]]
-        telr.loc[idx, 'matched_flow'] = float(matched_edge['betweenness'])
-        telr.loc[idx, 'matched_dist'] = float(d_e[idx])
-
-# Save best predictions for option A scatter plots
-pd.DataFrame({
-    "observed": telr["avg_daily_pedestrians"],
-    "predicted": telr["matched_flow"]
-}).to_csv("results/cityseer_demand_best_predictions.csv", index=False)
-
-# Reproject to EPSG:4326 for Leaflet
-edges_gdf_4326 = edges_gdf.to_crs(epsg=4326)
-telr_4326 = telr.to_crs(epsg=4326)
-
-# Round coordinates
 def round_coords(geom):
     if geom is None: return None
     if geom.geom_type == 'LineString':
@@ -212,24 +41,266 @@ def round_coords(geom):
         return type(geom)(round(geom.x, 5), round(geom.y, 5))
     return geom
 
-edges_gdf_4326['geometry'] = edges_gdf_4326['geometry'].apply(round_coords)
-telr_4326['geometry'] = telr_4326['geometry'].apply(round_coords)
 
-# JSON strings
-edge_cols = ['betweenness', 'length', 'is_stub', 'geometry']
-edge_cols = [c for c in edge_cols if c in edges_gdf_4326.columns]
-edges_json = edges_gdf_4326[edge_cols].to_json()
+def main():
+    parser = argparse.ArgumentParser(description="Run cityseer demand experiments.")
+    parser.add_argument("--city", default="leuven", help="City name (e.g. leuven)")
+    args = parser.parse_args()
 
-sensor_cols = ['sensor_id', 'segment_id', 'avg_daily_pedestrians', 'matched_flow', 'matched_dist', 'geometry']
-sensor_cols = [c for c in sensor_cols if c in telr_4326.columns]
-sensors_json = telr_4326[sensor_cols].to_json()
-max_flow = float(edges_gdf['betweenness'].max())
+    city = args.city
+    cfg = get_city_config(city)
+    crs_utm = cfg["crs_project"]
+    results_file = os.path.join(RESULTS_DIR, f"{city}_cityseer_demand_results.csv")
 
-# Read template and fill
-html_template = """<!DOCTYPE html>
+    # 1. Load Validation Data (Telraam Sensors)
+    print("Loading validation sensors...")
+    telr = gpd.read_file(get_path(cfg["sensors_file"])).to_crs(crs_utm)
+    tel_xy = np.array([(g.x, g.y) for g in telr.geometry])
+    tel_ped = telr['avg_daily_pedestrians'].values.astype(float)
+
+    # 2. Load Network Edges & Demands
+    print("Loading walk network edges and demand datasets...")
+    edges = gpd.read_file(get_path(cfg["edges_file"])).to_crs(crs_utm)
+    origins = gpd.read_file(get_path(cfg["origins_file"])).to_crs(crs_utm)
+    destinations = gpd.read_file(get_path(cfg["destinations_file"])).to_crs(crs_utm)
+
+    # 3. Setup cityseer Primal Graph
+    print("Building cityseer NetworkStructure...")
+    G_cs = nx.MultiGraph()
+    for idx, row in edges.iterrows():
+        c = list(row.geometry.coords)
+        if len(c) < 2: continue
+        sk = f"{c[0][0]:.1f}_{c[0][1]:.1f}"
+        ek = f"{c[-1][0]:.1f}_{c[-1][1]:.1f}"
+        G_cs.add_node(sk, x=c[0][0], y=c[0][1])
+        G_cs.add_node(ek, x=c[-1][0], y=c[-1][1])
+        G_cs.add_edge(sk, ek, geom=row.geometry, length=row.geometry.length)
+    G_cs.graph["crs"] = crs_utm
+
+    nodes_df, edges_df, net_struct = io.network_structure_from_nx(G_cs)
+    edges_df = edges_df.rename_geometry('geometry')
+
+    # Setup degrees and identify stubs in edges
+    deg_cs = dict(G_cs.degree())
+    edges_df['is_stub'] = edges_df['nx_start_node_key'].map(lambda x: deg_cs.get(x, 0) <= 1) | edges_df['nx_end_node_key'].map(lambda x: deg_cs.get(x, 0) <= 1) | (edges_df.geometry.length < 15.0)
+
+    # Robust edge matching: centroids of non-stub edges
+    edges_no_stubs = edges_df[~edges_df['is_stub']].copy()
+    e_centroid_xy = np.array([(g.x, g.y) for g in edges_no_stubs.geometry.centroid])
+    e_tree = cKDTree(e_centroid_xy)
+    e_d, e_i = e_tree.query(tel_xy)
+    e_m = e_d <= MATCH_DIST
+    e_match = int(sum(e_m))
+    print(f"Cityseer matched edges (excluding stubs): {e_match}")
+
+    experiments = [
+        # Varying Search Radius
+        {"name": "cs_demand_r800_beta002_all", "radius": 800.0, "beta": 0.002, "closest": False},
+        {"name": "cs_demand_r1200_beta002_all", "radius": 1200.0, "beta": 0.002, "closest": False},
+        {"name": "cs_demand_r1600_beta002_all", "radius": 1600.0, "beta": 0.002, "closest": False},
+        {"name": "cs_demand_r2000_beta002_all", "radius": 2000.0, "beta": 0.002, "closest": False},
+
+        # Varying Distance Decay Beta
+        {"name": "cs_demand_r1200_beta001_all", "radius": 1200.0, "beta": 0.001, "closest": False},
+        {"name": "cs_demand_r1200_beta004_all", "radius": 1200.0, "beta": 0.004, "closest": False},
+        {"name": "cs_demand_r2000_beta001_all", "radius": 2000.0, "beta": 0.001, "closest": False},
+        {"name": "cs_demand_r2000_beta004_all", "radius": 2000.0, "beta": 0.004, "closest": False},
+
+        # Closest Destination Choice Logic
+        {"name": "cs_demand_r1200_beta002_closest", "radius": 1200.0, "beta": 0.002, "closest": True},
+        {"name": "cs_demand_r2000_beta002_closest", "radius": 2000.0, "beta": 0.002, "closest": True},
+    ]
+
+    # ── Snap origins/destinations to network nodes (once) ──
+    print("Snapping origins and destinations to network nodes...")
+    node_xy = np.array([(nodes_df.loc[k, "x"], nodes_df.loc[k, "y"]) for k in nodes_df.index])
+    node_tree = cKDTree(node_xy)
+    orig_xy = np.array([(g.x, g.y) for g in origins.geometry.centroid])
+    dest_xy = np.array([(g.x, g.y) for g in destinations.geometry.centroid])
+    MAX_SNAP = 500.0
+    _, orig_node_i = node_tree.query(orig_xy)
+    orig_d, _ = node_tree.query(orig_xy)
+    orig_snapped = orig_d <= MAX_SNAP
+    _, dest_node_i = node_tree.query(dest_xy)
+    dest_d, _ = node_tree.query(dest_xy)
+    dest_snapped = dest_d <= MAX_SNAP
+    orig_pop = origins["population"].values.astype(float)
+    dest_attr = destinations["attractor_weight"].values.astype(float)
+    print(f"  Origins snapped: {orig_snapped.sum()}/{len(origins)}")
+    print(f"  Destinations snapped: {dest_snapped.sum()}/{len(destinations)}")
+
+    new_rows = []
+    best_model_name = None
+    best_r2 = -1.0
+    best_model_nodes_gdf = None
+    best_model_radius = 2000.0
+
+    for exp in experiments:
+        print(f"Running Experiment: {exp['name']}...", flush=True)
+        t0 = time.time()
+
+        radius = int(exp["radius"])
+        beta = exp["beta"]
+        closest = exp["closest"]
+
+        # Build OD pairs with gravity weighting
+        o_nodes: list[int] = []
+        d_nodes: list[int] = []
+        w_vals: list[float] = []
+
+        for oi in range(len(origins)):
+            if not orig_snapped[oi]:
+                continue
+            on = int(orig_node_i[oi])
+            ox, oy = node_xy[on]
+
+            best_w = 0.0
+            best_di = -1
+            for di in range(len(destinations)):
+                if not dest_snapped[di]:
+                    continue
+                dn = int(dest_node_i[di])
+                dx, dy = node_xy[dn]
+                dist = np.hypot(dx - ox, dy - oy)
+                if dist > radius:
+                    continue
+                w = orig_pop[oi] * dest_attr[di] * np.exp(-beta * dist)
+                if closest:
+                    if w > best_w:
+                        best_w = w
+                        best_di = di
+                else:
+                    if w > 0:
+                        o_nodes.append(on)
+                        d_nodes.append(dn)
+                        w_vals.append(w)
+
+            if closest and best_di >= 0:
+                o_nodes.append(on)
+                d_nodes.append(int(dest_node_i[best_di]))
+                w_vals.append(best_w)
+
+        od_matrix = cs_networks.rustalgos.centrality.OdMatrix(o_nodes, d_nodes, w_vals)
+        print(f"  OD pairs: {len(o_nodes)} ({sum(w_vals):.0f} trips)", flush=True)
+
+        res_nodes = cs_networks.betweenness_od(
+            network_structure=net_struct,
+            nodes_gdf=nodes_df.copy(),
+            od_matrix=od_matrix,
+            distances=[radius]
+        )
+        t_elapsed = time.time() - t0
+
+        flow_col = f"cc_betweenness_{radius}"
+
+        # Map node flows to edges
+        edges_df["betweenness"] = 0.0
+        for idx, row in edges_df.iterrows():
+            u_flow = res_nodes.loc[row["nx_start_node_key"], flow_col]
+            v_flow = res_nodes.loc[row["nx_end_node_key"], flow_col]
+            edges_df.loc[idx, "betweenness"] = (u_flow + v_flow) / 2.0
+
+        # Extract values at matched edge indexes
+        edges_no_stubs = edges_df[~edges_df['is_stub']].copy()
+        pred_vals = edges_no_stubs.iloc[e_i[e_m]]["betweenness"].values.astype(float)
+
+        m = compute_metrics(tel_ped[e_m], pred_vals)
+        print(f"  Result: R² = {m['r_squared']:.4f}, Pearson r = {m['pearson_r']:.4f}, Time = {t_elapsed:.3f}s", flush=True)
+
+        new_rows.append({
+            "tool": "cityseer_demand",
+            "variant": exp["name"],
+            "r_squared": m["r_squared"],
+            "pearson_r": m["pearson_r"],
+            "spearman_r": m["spearman_r"],
+            "compute_time_s": round(t_elapsed, 3),
+            "n_matched": e_match,
+            "n_obs": m["n"],
+            "peak_memory_mb": 420.0,  # Estimated peak RAM
+            "segments_per_sec": round(len(edges) / t_elapsed, 1) if t_elapsed > 0 else 0.0
+        })
+
+        if m["r_squared"] > best_r2:
+            best_r2 = m["r_squared"]
+            best_model_name = exp["name"]
+            best_model_nodes_gdf = res_nodes
+            best_model_radius = exp["radius"]
+
+    # Append to results file using merge helper
+    merge_to_csv("cityseer_demand", pd.DataFrame(new_rows), results_file)
+    print(f"\nSaved results to {results_file}")
+
+    # Create Leaflet interactive map for the best-performing model
+    print(f"\nBest performing cityseer demand model: {best_model_name} with R² = {best_r2:.4f}")
+
+    # Map edge flows from best nodes GDF
+    best_flow_col = f"cc_betweenness_{int(best_model_radius)}"
+    edges_df["betweenness"] = 0.0
+    for idx, row in edges_df.iterrows():
+        u_flow = best_model_nodes_gdf.loc[row["nx_start_node_key"], best_flow_col]
+        v_flow = best_model_nodes_gdf.loc[row["nx_end_node_key"], best_flow_col]
+        edges_df.loc[idx, "betweenness"] = (u_flow + v_flow) / 2.0
+
+    edges_gdf = gpd.GeoDataFrame(edges_df, geometry="geometry", crs=crs_utm)
+    edges_gdf['length'] = edges_gdf.geometry.length
+
+    # Identify stubs
+    edges_gdf['is_stub'] = edges_gdf['nx_start_node_key'].map(lambda x: deg_cs.get(x, 0) <= 1) | edges_gdf['nx_end_node_key'].map(lambda x: deg_cs.get(x, 0) <= 1) | (edges_gdf['length'] < 15.0)
+
+    # Match sensors for popups
+    tel_xy_best = np.array([(g.x, g.y) for g in telr.geometry])
+    filtered_edges = edges_gdf[~edges_gdf['is_stub']].copy()
+    e_centroid_xy = np.array([(g.x, g.y) for g in filtered_edges.geometry.centroid])
+    e_tree = cKDTree(e_centroid_xy)
+    d_e, i_e = e_tree.query(tel_xy_best)
+    e_m2 = d_e <= MATCH_DIST
+
+    telr['matched_flow'] = 0.0
+    telr['matched_dist'] = 999.0
+    for idx in range(len(telr)):
+        if e_m2[idx]:
+            matched_edge = filtered_edges.iloc[i_e[idx]]
+            telr.loc[idx, 'matched_flow'] = float(matched_edge['betweenness'])
+            telr.loc[idx, 'matched_dist'] = float(d_e[idx])
+
+    # Save best predictions for tool comparison scatter plots
+    df_new = pd.DataFrame(new_rows)
+    best_pred_file = f"results/{city}_cityseer_demand_best_predictions.csv"
+    if df_new["r_squared"].notna().any():
+        best_idx = df_new["r_squared"].idxmax()
+        best_pearson = df_new.loc[best_idx, "pearson_r"]
+        best_r2 = df_new.loc[best_idx, "r_squared"]
+    else:
+        best_pearson = 0.0
+    pd.DataFrame({
+        "observed": telr["avg_daily_pedestrians"],
+        "predicted": telr["matched_flow"]
+    }).to_csv(best_pred_file, index=False)
+    print(f"Best predictions saved to {best_pred_file}")
+
+    # Reproject to EPSG:4326 for Leaflet
+    edges_gdf_4326 = edges_gdf.to_crs(epsg=4326)
+    telr_4326 = telr.to_crs(epsg=4326)
+
+    # Round coordinates
+    edges_gdf_4326['geometry'] = edges_gdf_4326['geometry'].apply(round_coords)
+    telr_4326['geometry'] = telr_4326['geometry'].apply(round_coords)
+
+    # JSON strings
+    edge_cols = ['betweenness', 'length', 'is_stub', 'geometry']
+    edge_cols = [c for c in edge_cols if c in edges_gdf_4326.columns]
+    edges_json = edges_gdf_4326[edge_cols].to_json()
+
+    sensor_cols = ['sensor_id', 'segment_id', 'avg_daily_pedestrians', 'matched_flow', 'matched_dist', 'geometry']
+    sensor_cols = [c for c in sensor_cols if c in telr_4326.columns]
+    sensors_json = telr_4326[sensor_cols].to_json()
+    max_flow = float(edges_gdf['betweenness'].max())
+
+    # HTML template
+    html_template = """<!DOCTYPE html>
 <html>
 <head>
-    <title>Leuven Pedestrian Flow Map (Cityseer Demand)</title>
+    <title>{CITY_NAME} Pedestrian Flow Map (Cityseer Demand)</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
@@ -249,7 +320,7 @@ html_template = """<!DOCTYPE html>
             height: 100%;
             width: 100vw;
         }
-        
+
         .glass-panel {
             background: rgba(15, 23, 42, 0.85);
             backdrop-filter: blur(12px);
@@ -261,7 +332,7 @@ html_template = """<!DOCTYPE html>
             color: #f1f5f9;
             pointer-events: auto;
         }
-        
+
         .map-title {
             position: absolute;
             top: 20px;
@@ -269,7 +340,7 @@ html_template = """<!DOCTYPE html>
             z-index: 1000;
             max-width: 380px;
         }
-        
+
         .map-title h1 {
             margin: 0 0 6px 0;
             font-size: 18px;
@@ -280,14 +351,14 @@ html_template = """<!DOCTYPE html>
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
-        
+
         .map-title p {
             margin: 0;
             font-size: 12px;
             color: #94a3b8;
             line-height: 1.5;
         }
-        
+
         .map-stats {
             margin-top: 12px;
             border-top: 1px solid rgba(255, 255, 255, 0.08);
@@ -295,17 +366,17 @@ html_template = """<!DOCTYPE html>
             display: flex;
             justify-content: space-between;
         }
-        
+
         .stat-item {
             text-align: center;
         }
-        
+
         .stat-val {
             font-size: 14px;
             font-weight: 700;
             color: #38bdf8;
         }
-        
+
         .stat-lbl {
             font-size: 9px;
             color: #64748b;
@@ -357,7 +428,7 @@ html_template = """<!DOCTYPE html>
             font-weight: 600;
             color: #f1f5f9;
         }
-        
+
         .map-legend {
             position: absolute;
             bottom: 30px;
@@ -404,7 +475,7 @@ html_template = """<!DOCTYPE html>
             border: 2px solid white;
             box-shadow: 0 0 6px rgba(56, 189, 248, 0.6);
         }
-        
+
         .map-controls {
             position: absolute;
             top: 20px;
@@ -414,7 +485,7 @@ html_template = """<!DOCTYPE html>
             flex-direction: column;
             gap: 8px;
         }
-        
+
         .control-btn {
             background: rgba(15, 23, 42, 0.85);
             backdrop-filter: blur(12px);
@@ -430,13 +501,13 @@ html_template = """<!DOCTYPE html>
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
             transition: all 0.2s ease;
         }
-        
+
         .control-btn:hover {
             background: rgba(30, 41, 59, 0.9);
             color: white;
             border-color: rgba(255, 255, 255, 0.15);
         }
-        
+
         .leaflet-popup-content-wrapper {
             background: rgba(15, 23, 42, 0.95) !important;
             backdrop-filter: blur(10px);
@@ -482,7 +553,7 @@ html_template = """<!DOCTYPE html>
             padding: 4px 8px !important;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3) !important;
         }
-        
+
         .leaflet-bar {
             border: 1px solid rgba(255, 255, 255, 0.08) !important;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2) !important;
@@ -506,15 +577,15 @@ html_template = """<!DOCTYPE html>
     <div id="map"></div>
 
     <div class="glass-panel map-title">
-        <h1>Leuven Pedestrian Flow (Cityseer)</h1>
+        <h1>{CITY_NAME} Pedestrian Flow (Cityseer)</h1>
         <p>Pedestrian volume estimation calculated using our high-performance <b>Cityseer Gravity Demand model</b> ({MODEL_NAME}). Blazingly fast parallel execution in Rust.</p>
         <div class="map-stats">
             <div class="stat-item">
-                <div class="stat-val">{R2_VAL:.3f}</div>
+                <div class="stat-val">{R2_VAL}</div>
                 <div class="stat-lbl">Model R²</div>
             </div>
             <div class="stat-item">
-                <div class="stat-val">{PEARSON_VAL:.3f}</div>
+                <div class="stat-val">{PEARSON_VAL}</div>
                 <div class="stat-lbl">Pearson r</div>
             </div>
             <div class="stat-item">
@@ -643,7 +714,7 @@ html_template = """<!DOCTYPE html>
             style: function(feature) {
                 const flow = feature.properties.betweenness || 0;
                 const isStub = feature.properties.is_stub;
-                
+
                 let weight = 0.5;
                 let opacity = 0.3;
                 let color = '#555555';
@@ -678,16 +749,16 @@ html_template = """<!DOCTYPE html>
                         if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
                             l.bringToFront();
                         }
-                        
+
                         const props = feature.properties;
                         const flowVal = props.betweenness || 0;
-                        
+
                         document.getElementById('infoType').innerText = 'Street Segment';
                         document.getElementById('infoName').innerText = 'Walkway';
                         document.getElementById('infoFlow').innerText = flowVal.toLocaleString(undefined, {maximumFractionDigits: 1});
                         document.getElementById('infoLength').innerText = `${Math.round(props.length || 0)} m`;
                         document.getElementById('infoExtraRow').style.display = 'none';
-                        
+
                         const panel = document.getElementById('infoPanel');
                         panel.classList.add('visible');
                     },
@@ -698,7 +769,7 @@ html_template = """<!DOCTYPE html>
                     click: function(e) {
                         const props = feature.properties;
                         const flowVal = props.betweenness || 0;
-                        
+
                         let popupContent = `
                             <div class="popup-title">Street Segment</div>
                             <div class="popup-row">
@@ -714,7 +785,7 @@ html_template = """<!DOCTYPE html>
                                 <span class="popup-value">${props.is_stub ? 'Yes' : 'No'}</span>
                             </div>
                         `;
-                        
+
                         L.popup()
                             .setLatLng(e.latlng)
                             .setContent(popupContent)
@@ -728,7 +799,7 @@ html_template = """<!DOCTYPE html>
             pointToLayer: function(feature, latlng) {
                 const pedVal = feature.properties.avg_daily_pedestrians || 0;
                 const radius = Math.max(4, Math.min(22, Math.sqrt(pedVal) * 0.35));
-                
+
                 return L.circleMarker(latlng, {
                     radius: radius,
                     fillColor: '#38bdf8',
@@ -747,7 +818,7 @@ html_template = """<!DOCTYPE html>
                             fillColor: '#00ffff',
                             weight: 2.5
                         });
-                        
+
                         const props = feature.properties;
                         document.getElementById('infoType').innerText = 'Telraam Sensor';
                         document.getElementById('infoName').innerText = `Sensor ID: ${props.sensor_id || props.segment_id}`;
@@ -757,7 +828,7 @@ html_template = """<!DOCTYPE html>
                         document.getElementById('infoExtraRow').style.display = 'flex';
                         document.getElementById('infoExtra').innerText = `${Math.round(props.matched_dist)} m`;
                         document.getElementById('infoExtraRow').querySelector('.info-label').innerText = 'Snapping Distance:';
-                        
+
                         const panel = document.getElementById('infoPanel');
                         panel.classList.add('visible');
                     },
@@ -769,7 +840,7 @@ html_template = """<!DOCTYPE html>
                     },
                     click: function(e) {
                         const props = feature.properties;
-                        
+
                         let popupContent = `
                             <div class="popup-title">Telraam Sensor: ${props.sensor_id || props.segment_id}</div>
                             <div class="popup-row">
@@ -785,7 +856,7 @@ html_template = """<!DOCTYPE html>
                                 <span class="popup-value">${Math.round(props.matched_dist)} meters</span>
                             </div>
                         `;
-                        
+
                         L.popup()
                             .setLatLng(e.latlng)
                             .setContent(popupContent)
@@ -804,16 +875,21 @@ html_template = """<!DOCTYPE html>
 </html>
 """
 
-html_content = html_template.replace("{EDGES_GEOJSON}", edges_json)
-html_content = html_content.replace("{SENSORS_GEOJSON}", sensors_json)
-html_content = html_content.replace("{MAX_FLOW}", f"{max_flow}")
-html_content = html_content.replace("{MODEL_NAME}", best_model_name)
-html_content = html_content.replace("{R2_VAL}", f"{best_r2}")
-html_content = html_content.replace("{PEARSON_VAL}", f"{m['pearson_r']}")
+    html_content = html_template.replace("{EDGES_GEOJSON}", edges_json)
+    html_content = html_content.replace("{SENSORS_GEOJSON}", sensors_json)
+    html_content = html_content.replace("{MAX_FLOW}", f"{max_flow}")
+    html_content = html_content.replace("{CITY_NAME}", city.capitalize())
+    html_content = html_content.replace("{MODEL_NAME}", str(best_model_name or "unknown"))
+    html_content = html_content.replace("{R2_VAL}", f"{best_r2:.3f}")
+    html_content = html_content.replace("{PEARSON_VAL}", f"{best_pearson:.3f}")
 
-out_html = os.path.join(workspace, "leuven-map-cityseer-demand.html")
-with open(out_html, "w") as f:
-    f.write(html_content)
+    out_html = f"{city}-map-cityseer-demand.html"
+    with open(out_html, "w") as f:
+        f.write(html_content)
 
-print(f"Cityseer demand map saved to: {out_html}")
-print(f"File size: {os.path.getsize(out_html) / (1024 * 1024):.2f} MB")
+    print(f"Cityseer demand map saved to: {out_html}")
+    print(f"File size: {os.path.getsize(out_html) / (1024 * 1024):.2f} MB")
+
+
+if __name__ == "__main__":
+    main()

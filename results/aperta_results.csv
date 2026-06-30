@@ -1,3 +1,0 @@
-tool,variant,r_squared,pearson_r,spearman_r,compute_time_s,n_matched,peak_memory_mb,segments_per_sec
-aperta,betweenness_full_1600m,0.015589953061373854,-0.12485973354678374,0.20722755505364204,162.32,22,380.4,117.8
-aperta,betweenness_sampled_500_1600m,0.019390426700542276,-0.13924951238888522,0.1959345002823264,11.67,22,380.6,1638.7
