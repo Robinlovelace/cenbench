@@ -27,15 +27,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Copy data from image
-        run: |
-          echo "=== Image /workspace/data/ ==="
-          ls -la /workspace/data/ 2>&1 || echo "(empty)"
-          mkdir -p ./data/
-          cp -r /workspace/data/. ./data/
-          echo "=== Checkout ./data/ ==="
-          ls -la ./data/
-
       - name: Run DVC pipeline
         run: dvc repro
 

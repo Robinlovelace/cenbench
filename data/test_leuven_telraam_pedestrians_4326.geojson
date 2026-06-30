@@ -1,0 +1,13 @@
+{
+"type": "FeatureCollection",
+"name": "test_leuven_telraam_pedestrians_4326",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "sensor_id": "LEUVEN_347931", "avg_daily_pedestrians": 417.43, "total_pedestrians_7d": 2921.9950579759002 }, "geometry": { "type": "Point", "coordinates": [ 4.702783105544758, 50.88239656331789 ] } },
+{ "type": "Feature", "properties": { "sensor_id": "LEUVEN_349556", "avg_daily_pedestrians": 361.57, "total_pedestrians_7d": 2531.0 }, "geometry": { "type": "Point", "coordinates": [ 4.721083392058515, 50.873678554520112 ] } },
+{ "type": "Feature", "properties": { "sensor_id": "LEUVEN_349540", "avg_daily_pedestrians": 709.57, "total_pedestrians_7d": 4967.0 }, "geometry": { "type": "Point", "coordinates": [ 4.726960190404314, 50.876829576559288 ] } },
+{ "type": "Feature", "properties": { "sensor_id": "LEUVEN_349574", "avg_daily_pedestrians": 9.35, "total_pedestrians_7d": 65.457843939200004 }, "geometry": { "type": "Point", "coordinates": [ 4.722268943796633, 50.880975850239366 ] } },
+{ "type": "Feature", "properties": { "sensor_id": "LEUVEN_349570", "avg_daily_pedestrians": 65.07, "total_pedestrians_7d": 455.46668927259998 }, "geometry": { "type": "Point", "coordinates": [ 4.717776509522393, 50.882358845830851 ] } },
+{ "type": "Feature", "properties": { "sensor_id": "LEUVEN_9000001463", "avg_daily_pedestrians": 1283.28, "total_pedestrians_7d": 8982.9677598664002 }, "geometry": { "type": "Point", "coordinates": [ 4.718075995823256, 50.883649102554692 ] } }
+]
+}
