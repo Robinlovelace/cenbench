@@ -28,6 +28,7 @@ import matplotlib.pyplot as plt
 import geopandas as gpd
 import contextily as ctx
 from IPython.display import display, Markdown
+from tabulate import tabulate
 
 os.makedirs("results", exist_ok=True)
 
@@ -51,17 +52,24 @@ def first_or_na(series, default="N/A"):
     return default if pd.isna(value) else value
 
 
-def results_table(data):
-    lines = ["| Variant | R² | Pearson r | Time (s) | RAM (MB) | Seg/s | Matched |",
-             "|---------|-----|-----------|----------|----------|-------|---------|"]
-    for _, row in data.iterrows():
-        ram = f"{row['peak_memory_mb']:.0f}" if not pd.isna(row['peak_memory_mb']) else "—"
-        sps = f"{row['segments_per_sec']:.0f}" if not pd.isna(row['segments_per_sec']) else "—"
-        lines.append(
-            f"| {row['variant']} | {row['r_squared']:.3f} | {row['pearson_r']:.3f} | "
-            f"{row['compute_time_s']:.1f} | {ram} | {sps} | {int(row['n_matched'])} |"
-        )
-    return "\n".join(lines)
+def fmt_table(data):
+    """Return a copy of data with consistent decimal formatting and display columns."""
+    cols = ["variant", "r_squared", "pearson_r", "compute_time_s",
+            "peak_memory_mb", "segments_per_sec", "n_matched"]
+    d = data[cols].copy()
+    d["r_squared"] = d["r_squared"].round(3)
+    d["pearson_r"] = d["pearson_r"].round(3)
+    d["compute_time_s"] = d["compute_time_s"].round(1)
+    d["peak_memory_mb"] = d["peak_memory_mb"].round(0).astype("Int64")
+    d["segments_per_sec"] = d["segments_per_sec"].round(0).astype("Int64")
+    d["n_matched"] = d["n_matched"].astype("Int64")
+    return d
+
+
+def show_table(data):
+    """Display a formatted DataFrame as a GitHub-flavoured markdown table."""
+    display(Markdown(tabulate(data, headers="keys", tablefmt="github",
+                               numalign="right", stralign="left", showindex="never")))
 
 
 def best_row(data):
@@ -382,7 +390,7 @@ Centrality methods measure the structural importance of each network edge (or no
 #| label: tbl-cityseer-results
 #| tbl-cap: "Cityseer centrality results."
 #| output: asis
-display(Markdown(results_table(cs_df)))
+show_table(fmt_table(cs_df))
 ```
 
 #### madina
@@ -392,7 +400,7 @@ display(Markdown(results_table(cs_df)))
 #| label: tbl-madina-results
 #| tbl-cap: "Madina centrality results."
 #| output: asis
-display(Markdown(results_table(md_df)))
+show_table(fmt_table(md_df))
 ```
 
 #### sDNA+
@@ -404,7 +412,7 @@ display(Markdown(results_table(md_df)))
 #| output: asis
 sdna_df = tool_results(df, "sdna")
 if len(sdna_df) > 0:
-    display(Markdown(results_table(sdna_df)))
+    show_table(fmt_table(sdna_df))
 ```
 
 ### Gravity / Demand Models
@@ -420,7 +428,7 @@ Gravity models estimate pedestrian flow by simulating trips from population-weig
 #| label: tbl-gravity-madina-results
 #| tbl-cap: "Madina WorldPop gravity results."
 #| output: asis
-display(Markdown(results_table(mwp_df)))
+show_table(fmt_table(mwp_df))
 ```
 
 ```{python}
@@ -428,7 +436,7 @@ display(Markdown(results_table(mwp_df)))
 #| label: tbl-gravity-cityseer-results
 #| tbl-cap: "Cityseer Demand gravity results."
 #| output: asis
-display(Markdown(results_table(csd_df)))
+show_table(fmt_table(csd_df))
 ```
 
 ### Performance
@@ -438,9 +446,9 @@ display(Markdown(results_table(csd_df)))
 #| label: tbl-performance-summary
 #| tbl-cap: "Runtime summary per tool: min, median, and max wall-clock seconds across all variants."
 #| output: asis
-perf = df_all.groupby('tool')['compute_time_s'].agg(['min', 'median', 'max']).round(1)
+perf = df_all.groupby('tool')['compute_time_s'].agg(['min', 'median', 'max']).round(1).reset_index()
 
-display(Markdown(perf.to_markdown()))
+show_table(perf)
 ```
 
 
