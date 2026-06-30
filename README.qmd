@@ -71,6 +71,7 @@ def best_row(data):
 
 
 df = load_results("results/leuven_results.csv")
+df_all = df.copy()  # keep unfiltered for performance stats
 
 # ── Variant culling: keep informative subset (~10 variants) ──
 KEEP_VARIANTS = {
@@ -139,7 +140,7 @@ plt.close()
 ```{python}
 #| include: false
 # ── PERFORMANCE FIGURE ──
-perf_df = df[['tool', 'variant', 'compute_time_s', 'peak_memory_mb', 'segments_per_sec']].sort_values('compute_time_s')
+perf_df = df_all[['tool', 'variant', 'compute_time_s', 'peak_memory_mb', 'segments_per_sec']].sort_values('compute_time_s')
 fastest = perf_df.iloc[0] if len(perf_df) > 0 else None
 max_sps = perf_df['segments_per_sec'].max() if 'segments_per_sec' in perf_df.columns and perf_df['segments_per_sec'].notna().any() else 0
 
@@ -159,7 +160,7 @@ ax1.grid(True, axis='x', linestyle=':', alpha=0.5, zorder=0)
 ax1.set_axisbelow(True)
 
 # Memory subplot
-if 'peak_memory_mb' in df.columns and df['peak_memory_mb'].notna().any():
+if 'peak_memory_mb' in df_all.columns and df_all['peak_memory_mb'].notna().any():
     ram_df = perf_df[perf_df['peak_memory_mb'].notna()]
     max_ram = ram_df['peak_memory_mb'].max()
     # Calculate % free RAM relative to the most intensive run
@@ -437,7 +438,7 @@ display(Markdown(results_table(csd_df)))
 #| label: tbl-performance-summary
 #| tbl-cap: "Runtime summary per tool: min, median, and max wall-clock seconds across all variants."
 #| output: asis
-perf = df.groupby('tool')['compute_time_s'].agg(['min', 'median', 'max']).round(1)
+perf = df_all.groupby('tool')['compute_time_s'].agg(['min', 'median', 'max']).round(1)
 for _, row in perf.iterrows():
     print(f"  {row}")
 
