@@ -27,10 +27,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Copy data files from image
-        run: |
-          ls /workspace/data/ 2>/dev/null && cp -r /workspace/data/. ./data/ || echo "No data dir in image"
-
       - name: Run DVC pipeline
         run: dvc repro
 
