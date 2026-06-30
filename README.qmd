@@ -452,7 +452,7 @@ show_table(perf)
 ```
 
 
-Full results with all 47 variants: [`results/leuven_results.csv`](results/leuven_results.csv)
+Full results with all `{python} len(df_all)` variants: [`results/leuven_results.csv`](results/leuven_results.csv)
 
 ![Computational performance: throughput and memory usage](results/fig3_performance.png){#fig-performance}
 
