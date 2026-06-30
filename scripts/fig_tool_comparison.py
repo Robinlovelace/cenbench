@@ -66,7 +66,7 @@ def main():
     
     TOOLS = [
         ("madina_worldpop", madina_wp_var, madina_wp_r2, madina_wp_r, "#f39c12", f"results/{city}_best_predictions.csv"),
-        ("cityseer_demand", cityseer_dem_var, cityseer_dem_r2, cityseer_dem_r, "#9b59b6", "results/cityseer_demand_best_predictions.csv"),
+        ("cityseer_demand", cityseer_dem_var, cityseer_dem_r2, cityseer_dem_r, "#9b59b6", f"results/{city}_cityseer_demand_best_predictions.csv"),
         ("sdna",            sdna_var,        sdna_r2,        sdna_r,        "#1abc9c", "results/sdna_best_predictions.csv"),
         ("madina",          madina_var,      madina_r2,      madina_r,      "#e74c3c", None),
     ]

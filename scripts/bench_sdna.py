@@ -65,13 +65,7 @@ def main():
     crs_utm = cfg["crs_project"]
 
     # ── Sensors ──
-    with open(get_path(cfg["sensors_file"])) as f:
-        sd = json.load(f)
-    feats = []
-    for feat in sd["features"]:
-        feats.append({"type": "Feature", "properties": feat["properties"],
-                      "geometry": feat["geometry"]})
-    tel = gpd.GeoDataFrame.from_features(feats, crs=4326).to_crs(crs_utm)
+    tel = gpd.read_file(get_path(cfg["sensors_file"]), engine="fiona").to_crs(crs_utm)
     tel_xy = np.array([(g.x, g.y) for g in tel.geometry])
     tel_ped = tel["avg_daily_pedestrians"].values.astype(float)
     print(f"Sensors: {len(tel)}", flush=True)

@@ -209,10 +209,19 @@ def main():
             telr.loc[idx, 'matched_dist'] = float(d_e[idx])
 
     # Save best predictions for tool comparison scatter plots
+    df_new = pd.DataFrame(new_rows)
+    best_pred_file = f"results/{city}_cityseer_demand_best_predictions.csv"
+    if df_new["r_squared"].notna().any():
+        best_idx = df_new["r_squared"].idxmax()
+        best_pearson = df_new.loc[best_idx, "pearson_r"]
+        best_r2 = df_new.loc[best_idx, "r_squared"]
+    else:
+        best_pearson = 0.0
     pd.DataFrame({
         "observed": telr["avg_daily_pedestrians"],
         "predicted": telr["matched_flow"]
-    }).to_csv("results/cityseer_demand_best_predictions.csv", index=False)
+    }).to_csv(best_pred_file, index=False)
+    print(f"Best predictions saved to {best_pred_file}")
 
     # Reproject to EPSG:4326 for Leaflet
     edges_gdf_4326 = edges_gdf.to_crs(epsg=4326)
@@ -236,7 +245,7 @@ def main():
     html_template = """<!DOCTYPE html>
 <html>
 <head>
-    <title>Leuven Pedestrian Flow Map (Cityseer Demand)</title>
+    <title>{CITY_NAME} Pedestrian Flow Map (Cityseer Demand)</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
@@ -513,15 +522,15 @@ def main():
     <div id="map"></div>
 
     <div class="glass-panel map-title">
-        <h1>Leuven Pedestrian Flow (Cityseer)</h1>
+        <h1>{CITY_NAME} Pedestrian Flow (Cityseer)</h1>
         <p>Pedestrian volume estimation calculated using our high-performance <b>Cityseer Gravity Demand model</b> ({MODEL_NAME}). Blazingly fast parallel execution in Rust.</p>
         <div class="map-stats">
             <div class="stat-item">
-                <div class="stat-val">{R2_VAL:.3f}</div>
+                <div class="stat-val">{R2_VAL}</div>
                 <div class="stat-lbl">Model R²</div>
             </div>
             <div class="stat-item">
-                <div class="stat-val">{PEARSON_VAL:.3f}</div>
+                <div class="stat-val">{PEARSON_VAL}</div>
                 <div class="stat-lbl">Pearson r</div>
             </div>
             <div class="stat-item">
@@ -814,11 +823,10 @@ def main():
     html_content = html_template.replace("{EDGES_GEOJSON}", edges_json)
     html_content = html_content.replace("{SENSORS_GEOJSON}", sensors_json)
     html_content = html_content.replace("{MAX_FLOW}", f"{max_flow}")
+    html_content = html_content.replace("{CITY_NAME}", city.capitalize())
     html_content = html_content.replace("{MODEL_NAME}", str(best_model_name or "unknown"))
-    html_content = html_content.replace("{R2_VAL}", f"{best_r2}")
-    m_last = new_rows[-1] if new_rows else {}
-    last_pearson = m_last.get("pearson_r") if not isinstance(m_last.get("pearson_r"), float) or not np.isnan(m_last["pearson_r"]) else 0.0
-    html_content = html_content.replace("{PEARSON_VAL}", f"{last_pearson}")
+    html_content = html_content.replace("{R2_VAL}", f"{best_r2:.3f}")
+    html_content = html_content.replace("{PEARSON_VAL}", f"{best_pearson:.3f}")
 
     out_html = f"{city}-map-cityseer-demand.html"
     with open(out_html, "w") as f:

@@ -89,7 +89,7 @@ stages:
       hash: md5
       md5: ef93ca0fd53d3405422a498d765debda
       size: 5575231
-    - path: results/cityseer_demand_best_predictions.csv
+    - path: results/leuven_cityseer_demand_best_predictions.csv
       hash: md5
       md5: cfe0b117a2c870d8e7b6adc966ec0269
       size: 708
@@ -211,7 +211,7 @@ stages:
       hash: md5
       md5: 48a912d57e6b5ffad6cee1b81d03c061
       size: 700
-    - path: results/cityseer_demand_best_predictions.csv
+    - path: results/leuven_cityseer_demand_best_predictions.csv
       hash: md5
       md5: cfe0b117a2c870d8e7b6adc966ec0269
       size: 708
@@ -308,7 +308,7 @@ stages:
       hash: md5
       md5: 2481d8245bc4895ec222efa7efbd3877
       size: 2464751
-    - path: results/cityseer_demand_best_predictions.csv
+    - path: results/leuven_cityseer_demand_best_predictions.csv
       hash: md5
       md5: 22bd17b0c4ac0b563439a5371208356b
       size: 709

@@ -34,7 +34,7 @@ stages:
       - data/leuven_attractors.geojson
     outs:
       - results/leuven_cityseer_demand_results.csv
-      - results/cityseer_demand_best_predictions.csv
+      - results/leuven_cityseer_demand_best_predictions.csv
       - leuven-map-cityseer-demand.html
 
   bench_madina_gravity:
@@ -97,7 +97,7 @@ stages:
       - scripts/config.py
       - config/cities.yaml
       - results/leuven_best_predictions.csv
-      - results/cityseer_demand_best_predictions.csv
+      - results/leuven_cityseer_demand_best_predictions.csv
       - results/sdna_best_predictions.csv
 
   render_report:
