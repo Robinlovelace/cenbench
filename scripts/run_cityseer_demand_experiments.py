@@ -111,6 +111,24 @@ def main():
         {"name": "cs_demand_r2000_beta002_closest", "radius": 2000.0, "beta": 0.002, "closest": True},
     ]
 
+    # ── Snap origins/destinations to network nodes (once) ──
+    print("Snapping origins and destinations to network nodes...")
+    node_xy = np.array([(nodes_df.loc[k, "x"], nodes_df.loc[k, "y"]) for k in nodes_df.index])
+    node_tree = cKDTree(node_xy)
+    orig_xy = np.array([(g.x, g.y) for g in origins.geometry.centroid])
+    dest_xy = np.array([(g.x, g.y) for g in destinations.geometry.centroid])
+    MAX_SNAP = 500.0
+    _, orig_node_i = node_tree.query(orig_xy)
+    orig_d, _ = node_tree.query(orig_xy)
+    orig_snapped = orig_d <= MAX_SNAP
+    _, dest_node_i = node_tree.query(dest_xy)
+    dest_d, _ = node_tree.query(dest_xy)
+    dest_snapped = dest_d <= MAX_SNAP
+    orig_pop = origins["population"].values.astype(float)
+    dest_attr = destinations["attractor_weight"].values.astype(float)
+    print(f"  Origins snapped: {orig_snapped.sum()}/{len(origins)}")
+    print(f"  Destinations snapped: {dest_snapped.sum()}/{len(destinations)}")
+
     new_rows = []
     best_model_name = None
     best_r2 = -1.0
@@ -121,22 +139,59 @@ def main():
         print(f"Running Experiment: {exp['name']}...", flush=True)
         t0 = time.time()
 
-        # Compute demand centrality
-        res_nodes = cs_networks.betweenness_gravity_demand(
+        radius = int(exp["radius"])
+        beta = exp["beta"]
+        closest = exp["closest"]
+
+        # Build OD pairs with gravity weighting
+        o_nodes: list[int] = []
+        d_nodes: list[int] = []
+        w_vals: list[float] = []
+
+        for oi in range(len(origins)):
+            if not orig_snapped[oi]:
+                continue
+            on = int(orig_node_i[oi])
+            ox, oy = node_xy[on]
+
+            best_w = 0.0
+            best_di = -1
+            for di in range(len(destinations)):
+                if not dest_snapped[di]:
+                    continue
+                dn = int(dest_node_i[di])
+                dx, dy = node_xy[dn]
+                dist = np.hypot(dx - ox, dy - oy)
+                if dist > radius:
+                    continue
+                w = orig_pop[oi] * dest_attr[di] * np.exp(-beta * dist)
+                if closest:
+                    if w > best_w:
+                        best_w = w
+                        best_di = di
+                else:
+                    if w > 0:
+                        o_nodes.append(on)
+                        d_nodes.append(dn)
+                        w_vals.append(w)
+
+            if closest and best_di >= 0:
+                o_nodes.append(on)
+                d_nodes.append(int(orig_node_i[best_di]))
+                w_vals.append(best_w)
+
+        od_matrix = cs_networks.rustalgos.centrality.OdMatrix(o_nodes, d_nodes, w_vals)
+        print(f"  OD pairs: {len(o_nodes)} ({sum(w_vals):.0f} trips)", flush=True)
+
+        res_nodes = cs_networks.betweenness_od(
             network_structure=net_struct,
             nodes_gdf=nodes_df.copy(),
-            origins_gdf=origins,
-            destinations_gdf=destinations,
-            origin_weight_col="population",
-            destination_weight_col="attractor_weight",
-            search_radius=exp["radius"],
-            beta=exp["beta"],
-            closest_destination=exp["closest"],
-            max_snap_dist=500.0
+            od_matrix=od_matrix,
+            distances=[radius]
         )
         t_elapsed = time.time() - t0
 
-        flow_col = f"cc_betweenness_gravity_{int(exp['radius'])}"
+        flow_col = f"cc_betweenness_{radius}"
 
         # Map node flows to edges
         edges_df["betweenness"] = 0.0
@@ -179,7 +234,7 @@ def main():
     print(f"\nBest performing cityseer demand model: {best_model_name} with R² = {best_r2:.4f}")
 
     # Map edge flows from best nodes GDF
-    best_flow_col = f"cc_betweenness_gravity_{int(best_model_radius)}"
+    best_flow_col = f"cc_betweenness_{int(best_model_radius)}"
     edges_df["betweenness"] = 0.0
     for idx, row in edges_df.iterrows():
         u_flow = best_model_nodes_gdf.loc[row["nx_start_node_key"], best_flow_col]
