@@ -53,8 +53,8 @@ RUN wget -q https://github.com/quarto-dev/quarto-cli/releases/download/v1.8.27/q
 # sDNA+ .so from builder
 COPY --from=sdna-builder /build/sdna_vs2008.so /opt/sdna/lib/sdna_vs2008.so
 ENV SDNADLL=/opt/sdna/lib/sdna_vs2008.so
-ENV PATH="${PATH}:${HOME}/.local/bin"
 RUN pipx install sdna_plus --force
+ENV PATH="${PATH}:/root/.local/bin"
 
 WORKDIR /workspace
 COPY . .
