@@ -27,11 +27,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Link data files from image
-        run: |
-          # Data files are baked into the image at /workspace/data/ but
-          # aren't tracked in git, so the checkout dir doesn't have them.
-          cp -rsn /workspace/data/. ./data/
+      - name: Copy data files from image
+        run: cp -r /workspace/data/* ./data/
 
       - name: Run DVC pipeline
         run: dvc repro
