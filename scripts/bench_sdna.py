@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 sDNA+ Pedestrian Flow Benchmark.
-Runs sDNA+ integrality/centrality on the Leuven walk network and
+Runs sDNA+ integrality/centrality on the walk network and
 validates against Telraam pedestrian counts.
 
 Installation: pipx install sdna_plus
@@ -10,14 +10,13 @@ Then re-run this script.
 Usage: python scripts/bench_sdna.py --city leuven
 Output: results/sdna_results.csv
 """
-import os, sys, time, warnings, json, subprocess, tempfile, shutil, argparse
+import os, sys, time, warnings, subprocess, tempfile, shutil, argparse
 import numpy as np
 import pandas as pd
 import geopandas as gpd
 import psutil
 from scipy import stats
 from scipy.spatial import cKDTree
-from pyproj import Transformer
 warnings.filterwarnings("ignore")
 
 from scripts.config import get_path, get_city_config
@@ -26,6 +25,7 @@ _process = psutil.Process()
 DATA_DIR = "data"; RESULTS_DIR = "results"
 os.makedirs(RESULTS_DIR, exist_ok=True)
 MATCH_DIST = 200
+RADII = [200, 400, 800]
 
 
 def metrics(y, p):
@@ -48,7 +48,6 @@ def check_sdna():
         return True
     except FileNotFoundError:
         pass
-    # Try .venv/bin/
     venv_sdna = os.path.join(os.path.dirname(sys.executable), "sdnaintegral")
     if os.path.exists(venv_sdna):
         return True
@@ -110,18 +109,24 @@ def main():
         edges_out.to_file(net_shp)
         print(f"Exported {len(edges_out)} edges to shapefile", flush=True)
 
-        configs = [
-            ("angular_200m", "radii=200;metric=ANGULAR;nohull"),
-            ("angular_400m", "radii=400;metric=ANGULAR;nohull"),
-            ("angular_800m", "radii=800;metric=ANGULAR;nohull"),
-            ("euclidean_200m", "radii=200;metric=EUCLIDEAN;nohull"),
-            ("euclidean_400m", "radii=400;metric=EUCLIDEAN;nohull"),
-            ("euclidean_800m", "radii=800;metric=EUCLIDEAN;nohull"),
+        # Run sDNA once per metric, passing all radii as comma-separated list.
+        # ANGULAR with nobetweenness: MAD + NQPDA (closeness) are ~3× faster.
+        # EUCLIDEAN without nobetweenness: MED + NQPDE + MCF + BtE + DivE.
+        runs = [
+            ("ANGULAR", f"radii={','.join(str(r) for r in RADII)};metric=ANGULAR;nohull;nobetweenness"),
+            ("EUCLIDEAN", f"radii={','.join(str(r) for r in RADII)};metric=EUCLIDEAN;nohull"),
         ]
 
-        for variant, config_str in configs:
-            print(f"\n── sDNA {variant} ──", flush=True)
-            out_shp = os.path.join(workdir, f"sdna_{variant.replace(' ','_')}.shp")
+        # Per-metric column prefixes
+        METRIC_PREFIXES = {
+            "ANGULAR": ["MAD", "NQPDA", "MCF", "DivA"],
+            "EUCLIDEAN": ["MED", "NQPDE", "MCF", "DivE", "BtE"],
+        }
+
+        for metric_label, config_str in runs:
+            label_lower = metric_label.lower()
+            print(f"\n── sDNA {metric_label} radii={RADII} ──", flush=True)
+            out_shp = os.path.join(workdir, f"sdna_{label_lower}.shp")
 
             mem_before = compute_memory()
             t0 = time.perf_counter()
@@ -144,45 +149,42 @@ def main():
 
             sdna_out = gpd.read_file(out_shp)
 
-            radius = variant.split("_")[1].replace("m", "")
+            # Parse all metric×radius columns from the output
+            # sDNA appends the numeric radius to each metric name (e.g. MAD200, NQPDA400)
+            prefixes = METRIC_PREFIXES[metric_label]
+            for col in sdna_out.columns:
+                for prefix in prefixes:
+                    if col.startswith(prefix):
+                        radius_str = col[len(prefix):]
+                        try:
+                            radius_val = int(radius_str)
+                        except ValueError:
+                            continue
+                        if radius_val not in RADII:
+                            continue
 
-            cols_found = {}
-            for c in sdna_out.columns:
-                if c.startswith("BtA") and c[3:] == radius:
-                    cols_found["BtA"] = c
-                elif c.startswith("MAD") and c[3:] == radius:
-                    cols_found["MAD"] = c
-                elif c.startswith("NQPDA") and c[5:] == radius:
-                    cols_found["NQPDA"] = c
-                elif c.startswith("DivA") and c[4:] == radius:
-                    cols_found["DivA"] = c
-                elif c.startswith("MCF") and c[3:] == radius:
-                    cols_found["MCF"] = c
+                        variant_name = f"{prefix}_{label_lower}_{radius_val}m"
+                        vals = sdna_out.iloc[e_i[e_match]][col].values.astype(float)
+                        m = metrics(tel_ped[e_match], vals)
+                        result = {
+                            "tool": "sdna",
+                            "variant": variant_name,
+                            "r_squared": m["r_squared"],
+                            "pearson_r": m["pearson_r"],
+                            "spearman_r": m["spearman_r"],
+                            "compute_time_s": round(elapsed, 2),
+                            "n_matched": m["n_matched"],
+                            "peak_memory_mb": round(mem_peak, 1),
+                            "segments_per_sec": round(len(edges_u)/elapsed, 1) if elapsed > 0 else 0,
+                        }
+                        all_results.append(result)
 
-            print(f"  Found columns: {cols_found}", flush=True)
-
-            for metric_name, col in cols_found.items():
-                vals = sdna_out.iloc[e_i[e_match]][col].values.astype(float)
-                m = metrics(tel_ped[e_match], vals)
-                result = {
-                    "tool": "sdna",
-                    "variant": f"{metric_name}_{variant}",
-                    "r_squared": m["r_squared"],
-                    "pearson_r": m["pearson_r"],
-                    "spearman_r": m["spearman_r"],
-                    "compute_time_s": round(elapsed, 2),
-                    "n_matched": m["n_matched"],
-                    "peak_memory_mb": round(mem_peak, 1),
-                    "segments_per_sec": round(len(edges_u)/elapsed, 1) if elapsed > 0 else 0,
-                }
-                all_results.append(result)
-                print(f"  {metric_name}: R²={m['r_squared']:.4f} r={m['pearson_r']:.4f}", flush=True)
-
-                if variant == "angular_400m" and metric_name == "MAD":
-                    pd.DataFrame({
-                        "observed": tel_ped[e_match],
-                        "predicted": vals
-                    }).to_csv("results/sdna_best_predictions.csv", index=False)
+                        # Save best predictions (closeness at 400m angular)
+                        if label_lower == "angular" and prefix == "MAD" and radius_val == 400:
+                            pd.DataFrame({
+                                "observed": tel_ped[e_match],
+                                "predicted": vals
+                            }).to_csv("results/sdna_best_predictions.csv", index=False)
 
             print(f"  Time: {elapsed:.1f}s", flush=True)
 

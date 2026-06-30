@@ -113,8 +113,8 @@ stages:
       size: 4882432
     - path: scripts/bench_sdna.py
       hash: md5
-      md5: 671a7cf0480053beb46eebbfe84cc5c5
-      size: 7842
+      md5: bf86f0665baebcecbc610f4b43f96613
+      size: 8158
     - path: scripts/config.py
       hash: md5
       md5: e15826ebf21d825d512fb46010eb2460
@@ -130,8 +130,8 @@ stages:
       size: 514
     - path: results/sdna_results.csv
       hash: md5
-      md5: 476083222c368bb52c72e6b392b70ab4
-      size: 1820
+      md5: fd88d02034b6332b363447489b838e59
+      size: 2202
   generate_interactive_map:
     cmd: PYTHONPATH=. python scripts/generate_interactive_map.py --city leuven
     deps:
