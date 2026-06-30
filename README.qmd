@@ -180,7 +180,7 @@ if 'peak_memory_mb' in df.columns and df['peak_memory_mb'].notna().any():
     ax2.set_yticks(range(len(ram_df)))
     ax2.set_yticklabels([f"{r['tool']}\n{r['variant']}" for _, r in ram_df.iterrows()], fontsize=8)
     ax2.set_xlabel("% RAM Free (relative to most intensive run)", fontsize=11)
-    ax2.set_title("Memory Efficiency (Bigger is Better)", fontsize=13, fontweight='bold')
+    ax2.set_title("Memory Use", fontsize=13, fontweight='bold')
     ax2.grid(True, axis='x', linestyle=':', alpha=0.5, zorder=0)
     ax2.set_axisbelow(True)
     for i, (_, r) in enumerate(ram_df.iterrows()):
