@@ -177,7 +177,7 @@ def main():
 
             if closest and best_di >= 0:
                 o_nodes.append(on)
-                d_nodes.append(int(orig_node_i[best_di]))
+                d_nodes.append(int(dest_node_i[best_di]))
                 w_vals.append(best_w)
 
         od_matrix = cs_networks.rustalgos.centrality.OdMatrix(o_nodes, d_nodes, w_vals)

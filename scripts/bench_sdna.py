@@ -65,7 +65,7 @@ def main():
     crs_utm = cfg["crs_project"]
 
     # ── Sensors ──
-    tel = gpd.read_file(get_path(cfg["sensors_file"]), engine="fiona").to_crs(crs_utm)
+    tel = gpd.read_file(get_path(cfg["sensors_file"])).to_crs(crs_utm)
     tel_xy = np.array([(g.x, g.y) for g in tel.geometry])
     tel_ped = tel["avg_daily_pedestrians"].values.astype(float)
     print(f"Sensors: {len(tel)}", flush=True)
@@ -104,7 +104,7 @@ def main():
     workdir = tempfile.mkdtemp(prefix="sdna_bench_")
 
     try:
-        net_shp = os.path.join(workdir, "leuven_walk.shp")
+        net_shp = os.path.join(workdir, f"{city}_walk.shp")
         edges_out = edges_u[["id", "geometry"]].copy()
         edges_out["length"] = edges_out.geometry.length
         edges_out.to_file(net_shp)
