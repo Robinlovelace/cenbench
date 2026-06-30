@@ -26,10 +26,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: /workspace
+          clean: false
 
       - name: Run DVC pipeline
         run: dvc repro
-        working-directory: /workspace
 
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
