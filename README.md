@@ -64,6 +64,11 @@ analysis via a C++ library with Python, QGIS, and command-line
 interfaces, supporting hybrid and angular metrics with OpenMP
 multi-threading.
 
+**flownet** (**krantz2024flownet?**) implements path-sized-logit (PSL)
+stochastic traffic assignment for multimodal transport networks in R,
+enumerating alternative routes between origin-destination pairs and
+allocating flows while accounting for route overlap.
+
 <!-- TODO: populate this section -->
 
 <!-- ### Related Work
@@ -163,8 +168,22 @@ Table 4: Gravity/demand model configurations.
 | wp_r2000_beta002_all | madina_worldpop | 2000m radius, β=0.002, all attractors |
 | cs_demand_r800_beta002_all | cityseer_demand | 800m radius, β=0.02, all attractors |
 | cs_demand_r1200_beta002_all | cityseer_demand | 1200m radius, β=0.02, all attractors |
+| psl_beta0.002_detour1.5 | flownet | PSL assignment (canonical minimal call); β/detour accepted for interface symmetry, currently fixed in flownet |
 
 </div>
+
+### Multi-mode generalisation
+
+The benchmark suite is mode-aware: each city declares one or more travel
+modes (`walk`, `cycle`, `drive`) in `config/cities.yaml`, each with its
+own network, sensor-validation set, and gravity origins/destinations.
+Every benchmark script (centrality, sDNA+, cityseer demand, madina
+gravity, and flownet) loops over the configured modes and writes a
+`mode` column into the results. For Leuven the walking network is
+validated against Telraam pedestrian counts; cycling and driving
+networks are generated from OpenStreetMap (see
+`scripts/generate_networks.py`) and are ready to validate once per-mode
+Telraam counts (bicycles, cars) are supplied.
 
 ### Metrics
 
@@ -204,9 +223,9 @@ Table 5: Cityseer centrality results.
 
 | variant | r_squared | pearson_r | compute_time_s | peak_memory_mb | segments_per_sec | n_matched |
 |----|----|----|----|----|----|----|
-| shortest_3200m | 0.008 | -0.091 | 0.6 | 483 | 29428 | 22 |
-| shortest_800m | 0.004 | -0.064 | 0.1 | 439 | 233663 | 22 |
-| shortest_200m | 0 | -0.012 | 0 | 436 | 675752 | 22 |
+| shortest_3200m | 0.008 | -0.091 | 0.6 | 419 | 30108 | 22 |
+| shortest_800m | 0.004 | -0.064 | 0.1 | 374 | 247806 | 22 |
+| shortest_200m | 0 | -0.012 | 0 | 372 | 667377 | 22 |
 
 </div>
 
@@ -218,8 +237,8 @@ Table 6: Madina centrality results.
 
 | variant | r_squared | pearson_r | compute_time_s | peak_memory_mb | segments_per_sec | n_matched |
 |----|----|----|----|----|----|----|
-| degree | 0.145 | -0.381 | 0.7 | 489 | 26592 | 22 |
-| btw_weighted_200 | 0.002 | -0.041 | 2.9 | 489 | 6645 | 22 |
+| degree | 0.145 | -0.381 | 0.7 | 425 | 26639 | 22 |
+| btw_weighted_200 | 0.002 | -0.041 | 2.9 | 425 | 6503 | 22 |
 
 </div>
 
@@ -231,10 +250,10 @@ Table 7: sDNA+ centrality results.
 
 | variant | r_squared | pearson_r | compute_time_s | peak_memory_mb | segments_per_sec | n_matched |
 |----|----|----|----|----|----|----|
-| MAD_angular_800m | 0.468 | 0.684 | 8.1 | 400 | 2363 | 22 |
-| MAD_angular_400m | 0.353 | 0.594 | 8.1 | 400 | 2363 | 22 |
-| MAD_angular_200m | 0.264 | 0.514 | 8.1 | 400 | 2363 | 22 |
-| NQPDE_euclidean_800m | 0.241 | 0.491 | 66.3 | 400 | 288 | 22 |
+| MAD_angular_800m | 0.468 | 0.684 | 8.4 | 400 | 2279 | 22 |
+| MAD_angular_400m | 0.353 | 0.594 | 8.4 | 400 | 2279 | 22 |
+| MAD_angular_200m | 0.264 | 0.514 | 8.4 | 400 | 2279 | 22 |
+| NQPDE_euclidean_800m | 0.241 | 0.491 | 74.6 | 400 | 256 | 22 |
 
 </div>
 
@@ -266,10 +285,7 @@ Table 8: Madina WorldPop gravity results.
 
 | variant | r_squared | pearson_r | compute_time_s | peak_memory_mb | segments_per_sec | n_matched |
 |----|----|----|----|----|----|----|
-| wp_r3000_beta002_all | 0.876 | 0.936 | 57.3 | 344 | 165 | 22 |
-| wp_r2000_beta002_all | 0.868 | 0.932 | 33.2 | 344 | 285 | 22 |
-| wp_r1600_beta002_all | 0.862 | 0.928 | 25 | 344 | 378 | 22 |
-| wp_r1200_beta002_all | 0.851 | 0.923 | 17.2 | 343 | 550 | 22 |
+| wp_r3000_beta002_all | 0.876 | 0.936 | 48.3 | 300 | 196 | 22 |
 
 </div>
 
@@ -279,9 +295,23 @@ Table 9: Cityseer Demand gravity results.
 
 | variant | r_squared | pearson_r | compute_time_s | peak_memory_mb | segments_per_sec | n_matched |
 |----|----|----|----|----|----|----|
-| cs_demand_r2000_beta002_all | 0.632 | 0.795 | 2.5 | 420 | 7607 | 22 |
-| cs_demand_r1200_beta002_all | 0.573 | 0.757 | 2.2 | 420 | 8848 | 22 |
-| cs_demand_r800_beta002_all | 0.426 | 0.653 | 2 | 420 | 9436 | 22 |
+| cs_demand_r2000_beta002_all | 0.632 | 0.795 | 2.6 | 420 | 7426 | 22 |
+| cs_demand_r1200_beta002_all | 0.573 | 0.757 | 2.1 | 420 | 8946 | 22 |
+| cs_demand_r800_beta002_all | 0.426 | 0.653 | 2 | 420 | 9432 | 22 |
+
+</div>
+
+#### flownet
+
+<div id="tbl-gravity-flownet-results">
+
+Table 10: flownet path-sized-logit assignment results.
+
+| variant | r_squared | pearson_r | compute_time_s | peak_memory_mb | segments_per_sec | n_matched |
+|----|----|----|----|----|----|----|
+| psl_beta0.001_detour1.25 | 0.009 | -0.096 | 56.7 | 424 | 337 | 22 |
+| psl_beta0.002_detour1.5 | 0.009 | -0.096 | 55.7 | 400 | 344 | 22 |
+| psl_beta0.004_detour1.5 | 0.009 | -0.096 | 56.9 | 400 | 336 | 22 |
 
 </div>
 
@@ -289,20 +319,21 @@ Table 9: Cityseer Demand gravity results.
 
 <div id="tbl-performance-summary">
 
-Table 10: Runtime summary per tool: min, median, and max wall-clock
+Table 11: Runtime summary per tool: min, median, and max wall-clock
 seconds across all variants.
 
 | tool            | min  | median | max  |
 |-----------------|------|--------|------|
 | cityseer        | 0    | 0.1    | 0.6  |
-| cityseer_demand | 2    | 2.3    | 2.5  |
+| cityseer_demand | 2    | 2.3    | 2.6  |
+| flownet         | 55.4 | 56.1   | 56.9 |
 | madina          | 0.7  | 1.8    | 2.9  |
-| madina_worldpop | 11.3 | 24.1   | 57.3 |
-| sdna            | 8.1  | 66.3   | 66.3 |
+| madina_worldpop | 48.3 | 48.3   | 48.3 |
+| sdna            | 8.4  | 74.6   | 74.6 |
 
 </div>
 
-Full results with all 47 variants:
+Full results with all 45 variants:
 [`results/leuven_results.csv`](results/leuven_results.csv)
 
 <div id="fig-performance">
@@ -319,6 +350,10 @@ Figure 4: Computational performance: throughput and memory usage
 2.  K-fold spatial cross-validation
 3.  Additional goodness-of-fit metrics and centrality measures
 4.  Test adding covariates: e.g. POI density, population, transit stops
+5.  Validate cycling and driving modes once per-mode Telraam counts are
+    available
+6.  Compare flownet PSL assignment against the gravity/demand models
+    across modes
 
 ## Reproducibility
 
@@ -360,7 +395,18 @@ dvc repro
 - **Madina gravity**: Edit `scripts/run_madina_demand_experiments.py`.
 - **Cityseer demand**: Edit
   `scripts/run_cityseer_demand_experiments.py`.
+- **flownet**: Edit `scripts/bench_flownet.py` and
+  `scripts/run_flownet_assignment.R`.
 - **Centrality**: Edit `scripts/bench_centrality.py`.
+- **Modes**: Declare walk/cycle/drive networks and sensors in
+  `config/cities.yaml`; every script accepts `--modes walk cycle drive`
+  to scope a run.
+
+#### 5. Generate mode networks
+
+``` bash
+PYTHONPATH=. python scripts/generate_networks.py --city leuven --modes cycle drive
+```
 
 ### Project Structure & Reproducibility
 

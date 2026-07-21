@@ -97,6 +97,7 @@ KEEP_VARIANTS = {
         "cs_demand_r2000_beta002_all",
     ],
     "sdna": ["MAD_angular_800m", "MAD_angular_400m", "MAD_angular_200m", "NQPDE_euclidean_800m"],
+    "flownet": ["psl_beta0.001_detour1.25", "psl_beta0.002_detour1.5", "psl_beta0.004_detour1.5"],
 }
 keep_mask = df.apply(
     lambda r: r["variant"] in KEEP_VARIANTS.get(r["tool"], []), axis=1
@@ -108,6 +109,7 @@ md_df = tool_results(df, "madina")
 mwp_df = tool_results(df, "madina_worldpop")
 csd_df = tool_results(df, "cityseer_demand")
 sdna_df = tool_results(df, "sdna")
+flownet_df = tool_results(df, "flownet")
 ```
 
 ```{python}
@@ -122,6 +124,7 @@ colors = {
     'madina_worldpop': '#f39c12',
     'cityseer_demand': '#9b59b6',
     'sdna': '#1abc9c',
+    'flownet': '#2ecc71',
 }
 bar_colors = [colors.get(t, '#95a5a6') for t in plot_df['tool']]
 
@@ -251,6 +254,8 @@ Pedestrian flow modelling is central to walkability analysis, transport planning
 
 **sDNA+** [@cooper2020sdna] provides 3-d spatial network analysis via a C++ library with Python, QGIS, and command-line interfaces, supporting hybrid and angular metrics with OpenMP multi-threading.
 
+**flownet** [@krantz2024flownet] implements path-sized-logit (PSL) stochastic traffic assignment for multimodal transport networks in R, enumerating alternative routes between origin-destination pairs and allocating flows while accounting for route overlap.
+
 <!-- TODO: populate this section -->
 <!-- ### Related Work
 
@@ -334,8 +339,21 @@ WorldPop population data (100m grid, total population 171,574) serves as origin 
 | wp_r2000_beta002_all | madina_worldpop | 2000m radius, β=0.002, all attractors |
 | cs_demand_r800_beta002_all | cityseer_demand | 800m radius, β=0.02, all attractors |
 | cs_demand_r1200_beta002_all | cityseer_demand | 1200m radius, β=0.02, all attractors |
+| psl_beta0.002_detour1.5 | flownet | PSL assignment (canonical minimal call); β/detour accepted for interface symmetry, currently fixed in flownet |
 
 : Gravity/demand model configurations. {#tbl-gravity-design}
+
+### Multi-mode generalisation
+
+The benchmark suite is mode-aware: each city declares one or more travel
+modes (`walk`, `cycle`, `drive`) in `config/cities.yaml`, each with its own
+network, sensor-validation set, and gravity origins/destinations. Every
+benchmark script (centrality, sDNA+, cityseer demand, madina gravity, and
+flownet) loops over the configured modes and writes a `mode` column into the
+results. For Leuven the walking network is validated against Telraam
+pedestrian counts; cycling and driving networks are generated from OpenStreetMap
+(see `scripts/generate_networks.py`) and are ready to validate once
+per-mode Telraam counts (bicycles, cars) are supplied.
 
 ### Metrics
 
@@ -439,6 +457,16 @@ show_table(fmt_table(mwp_df))
 show_table(fmt_table(csd_df))
 ```
 
+#### flownet
+
+```{python}
+#| echo: false
+#| label: tbl-gravity-flownet-results
+#| tbl-cap: "flownet path-sized-logit assignment results."
+#| output: asis
+show_table(fmt_table(flownet_df))
+```
+
 ### Performance
 
 ```{python}
@@ -462,6 +490,8 @@ Full results with all `{python} len(df_all)` variants: [`results/leuven_results.
 2. K-fold spatial cross-validation
 3. Additional goodness-of-fit metrics and centrality measures
 4. Test adding covariates: e.g. POI density, population, transit stops
+5. Validate cycling and driving modes once per-mode Telraam counts are available
+6. Compare flownet PSL assignment against the gravity/demand models across modes
 
 ## Reproducibility {.unnumbered}
 
@@ -496,7 +526,16 @@ dvc repro
 - **sDNA+**: Edit `scripts/bench_sdna.py`.
 - **Madina gravity**: Edit `scripts/run_madina_demand_experiments.py`.
 - **Cityseer demand**: Edit `scripts/run_cityseer_demand_experiments.py`.
+- **flownet**: Edit `scripts/bench_flownet.py` and `scripts/run_flownet_assignment.R`.
 - **Centrality**: Edit `scripts/bench_centrality.py`.
+- **Modes**: Declare walk/cycle/drive networks and sensors in `config/cities.yaml`;
+  every script accepts `--modes walk cycle drive` to scope a run.
+
+#### 5. Generate mode networks
+
+```bash
+PYTHONPATH=. python scripts/generate_networks.py --city leuven --modes cycle drive
+```
 
 ### Project Structure & Reproducibility
 

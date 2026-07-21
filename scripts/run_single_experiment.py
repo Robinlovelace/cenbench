@@ -12,7 +12,7 @@ import geopandas as gpd
 import psutil
 
 from madina.zonal import Zonal
-from scripts.config import get_path, get_city_config
+from scripts.config import get_path, get_city_config, get_mode_config
 from madina.una import parallel_betweenness
 from scripts.utils.helpers import compute_metrics, filter_stubs, match_sensors_to_edges
 
@@ -27,6 +27,7 @@ def mem_now_mb():
 def main():
     parser = argparse.ArgumentParser(description="Run a single betweenness experiment.")
     parser.add_argument("--city", default="leuven", help="City name")
+    parser.add_argument("--mode", default="walk", help="Travel mode (walk/cycle/drive)")
     parser.add_argument("--name", required=True, help="Variant name")
     parser.add_argument("--search-radius", type=float, required=True, help="Search radius")
     parser.add_argument("--detour-ratio", type=float, required=True, help="Detour ratio")
@@ -36,13 +37,15 @@ def main():
     args = parser.parse_args()
 
     cfg = get_city_config(args.city)
+    mc = get_mode_config(args.city, args.mode)
     crs_project = cfg["crs_project"]
+    sensors_value = mc.get("sensors_value", "avg_daily_pedestrians")
 
     # Load data layers
-    edges = gpd.read_file(get_path(cfg["edges_file"])).to_crs(crs_project)
-    telr = gpd.read_file(get_path(cfg["sensors_file"])).to_crs(crs_project)
-    origins = gpd.read_file(get_path(cfg["origins_file"])).to_crs(crs_project)
-    destinations = gpd.read_file(get_path(cfg["destinations_file"])).to_crs(crs_project)
+    edges = gpd.read_file(get_path(mc["network_file"])).to_crs(crs_project)
+    telr = gpd.read_file(get_path(mc["sensors_file"])).to_crs(crs_project)
+    origins = gpd.read_file(get_path(mc["origins_file"])).to_crs(crs_project)
+    destinations = gpd.read_file(get_path(mc["destinations_file"])).to_crs(crs_project)
 
     t0 = time.time()
     
@@ -83,7 +86,7 @@ def main():
     
     # Get observed and predicted values
     matched_idxs = non_stub_gdf.iloc[idxs[matched]].index
-    obs = telr.iloc[matched]['avg_daily_pedestrians'].values.astype(float)
+    obs = telr.iloc[matched][sensors_value].values.astype(float)
     pred = edge_gdf.loc[matched_idxs, 'betweenness'].values.astype(float)
     
     m = compute_metrics(obs, pred)
@@ -91,6 +94,7 @@ def main():
     
     res = {
         "tool": "madina_worldpop",
+        "mode": args.mode,
         "variant": args.name,
         "r_squared": m["r_squared"],
         "pearson_r": m["pearson_r"],

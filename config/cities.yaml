@@ -1,16 +1,53 @@
 cities:
   leuven:
     crs_project: 32631
-    edges_file: "data/leuven_walk_edges.gpkg"
-    sensors_file: "data/leuven_telraam_pedestrians_4326.geojson"
-    origins_file: "data/leuven_worldpop_origins.geojson"
-    destinations_file: "data/leuven_attractors.geojson"
-    worldpop_url: "https://data.worldpop.org/GIS/Population/Global_2000_2020/2020/BEL/bel_ppp_2020.tif"
-    worldpop_local_tif: "bel_ppp_2020.tif"
     bbox: [4.6798, 50.8600, 4.7301, 50.9001]
     overpass_bbox: [50.85, 4.66, 50.91, 4.74]
+    worldpop_url: "https://data.worldpop.org/GIS/Population/Global_2000_2020/2020/BEL/bel_ppp_2020.tif"
+    worldpop_local_tif: "bel_ppp_2020.tif"
+    # Each mode has its own network, sensor validation set, and gravity
+    # origins/destinations. Walking is fully validated; cycling/driving
+    # networks are built (see scripts/generate_networks.py) and are ready
+    # for validation once per-mode Telraam counts are supplied.
+    modes:
+      walk:
+        network_file: "data/leuven_walk_edges.gpkg"
+        sensors_file: "data/leuven_telraam_pedestrians_4326.geojson"
+        sensors_value: "avg_daily_pedestrians"
+        origins_file: "data/leuven_worldpop_origins.geojson"
+        destinations_file: "data/leuven_attractors.geojson"
+        travel_speed: 1.4
+      cycle:
+        network_file: "data/leuven_cycle_edges.gpkg"
+        sensors_file: "data/leuven_telraam_cyclists_4326.geojson"
+        sensors_value: "avg_daily_cyclists"
+        origins_file: "data/leuven_worldpop_origins.geojson"
+        destinations_file: "data/leuven_attractors.geojson"
+        travel_speed: 4.2
+      drive:
+        network_file: "data/leuven_drive_edges.gpkg"
+        sensors_file: "data/leuven_telraam_cars_4326.geojson"
+        sensors_value: "avg_daily_cars"
+        origins_file: "data/leuven_worldpop_origins.geojson"
+        destinations_file: "data/leuven_attractors.geojson"
+        travel_speed: 8.3
   oxford:
     crs_project: 27700
-    edges_file: "data/oxford_walk_edges.gpkg"
-    sensors_file: "data/telraam_pedestrians_27700.geojson"
-    # To be populated when demand data for Oxford is added
+    # Oxford ships pre-built walk + drive networks (data/oxford_walk.graphml,
+    # data/oxford_drive.graphml). Walking sensors are configured; driving can
+    # be validated once per-mode counts are available.
+    modes:
+      walk:
+        network_file: "data/oxford_walk.graphml"
+        sensors_file: "data/telraam_pedestrians_27700.geojson"
+        sensors_value: "avg_daily_pedestrians"
+        origins_file: "data/oxford_worldpop_origins.geojson"
+        destinations_file: "data/oxford_attractors.geojson"
+        travel_speed: 1.4
+      drive:
+        network_file: "data/oxford_drive.graphml"
+        sensors_file: "data/oxford_telraam_cars_27700.geojson"
+        sensors_value: "avg_daily_cars"
+        origins_file: "data/oxford_worldpop_origins.geojson"
+        destinations_file: "data/oxford_attractors.geojson"
+        travel_speed: 8.3

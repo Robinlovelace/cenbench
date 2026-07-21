@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import geopandas as gpd
 
-from scripts.config import get_path, get_city_config
+from scripts.config import get_path, get_city_config, get_modes, get_mode_config
 from scripts.csv_utils import merge_to_csv
 
 RESULTS_DIR = "results"
@@ -21,43 +21,56 @@ MAX_RUNTIME = 75 # 1.25 minutes timeout per experiment
 def main():
     parser = argparse.ArgumentParser(description="Run demand estimation sensitivity experiments using subprocesses.")
     parser.add_argument("--city", default="leuven", help="City name (e.g. leuven)")
+    parser.add_argument("--modes", nargs="*", default=None,
+                        help="Subset of modes to run; default: all configured modes.")
     args = parser.parse_args()
     
     city = args.city
     cfg = get_city_config(city)
-    results_file = os.path.join(RESULTS_DIR, f"{city}_madina_worldpop_results.csv")
+    modes = args.modes or get_modes(city)
     
-    # Load sensors to count total observations for timeout fallback
-    telr = gpd.read_file(get_path(cfg["sensors_file"]))
-    num_sensors = len(telr)
-    
-    experiments = [
-        {"name": "wp_r800_beta002_all",   "search_radius": 800,  "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.002},
-        {"name": "wp_r1200_beta002_all",  "search_radius": 1200, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.002},
-        {"name": "wp_r1600_beta002_all",  "search_radius": 1600, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.002},
-        {"name": "wp_r2000_beta002_all",  "search_radius": 2000, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.002},
-        {"name": "wp_r1200_beta001_all",  "search_radius": 1200, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.001},
-        {"name": "wp_r1600_beta001_all",  "search_radius": 1600, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.001},
-        {"name": "wp_r2000_beta002_closest", "search_radius": 2000, "detour_ratio": 1.0, "closest_destination": True,  "decay": True, "beta": 0.002},
-        {"name": "wp_r1200_beta002_nodecay", "search_radius": 1200, "detour_ratio": 1.0, "closest_destination": False, "decay": False, "beta": 0.002},
-        {"name": "wp_r3000_beta002_all",  "search_radius": 3000, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.002},
-    ]
-    
-    new_results = []
-    
-    for exp in experiments:
-        cmd = [
-            sys.executable, "scripts/run_single_experiment.py",
-            "--city", city,
-            "--name", exp["name"],
-            "--search-radius", str(exp["search_radius"]),
-            "--detour-ratio", str(exp["detour_ratio"]),
-            "--beta", str(exp["beta"])
+    for mode in modes:
+        mc = get_mode_config(city, mode)
+        sensors_file = get_path(mc["sensors_file"])
+        sensors_value = mc.get("sensors_value", "avg_daily_pedestrians")
+        results_file = os.path.join(RESULTS_DIR, f"{city}_madina_worldpop_results.csv")
+        if not os.path.exists(sensors_file):
+            print(f"[skip] madina_worldpop {mode}: sensors {sensors_file} not found (validation pending)", flush=True)
+            continue
+
+        # Load sensors to count total observations for timeout fallback
+        telr = gpd.read_file(sensors_file)
+        num_sensors = len(telr)
+
+        experiments = [
+            {"name": "wp_r800_beta002_all",   "search_radius": 800,  "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.002},
+            {"name": "wp_r1200_beta002_all",  "search_radius": 1200, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.002},
+            {"name": "wp_r1600_beta002_all",  "search_radius": 1600, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.002},
+            {"name": "wp_r2000_beta002_all",  "search_radius": 2000, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.002},
+            {"name": "wp_r1200_beta001_all",  "search_radius": 1200, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.001},
+            {"name": "wp_r1600_beta001_all",  "search_radius": 1600, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.001},
+            {"name": "wp_r2000_beta002_closest", "search_radius": 2000, "detour_ratio": 1.0, "closest_destination": True,  "decay": True, "beta": 0.002},
+            {"name": "wp_r1200_beta002_nodecay", "search_radius": 1200, "detour_ratio": 1.0, "closest_destination": False, "decay": False, "beta": 0.002},
+            {"name": "wp_r3000_beta002_all",  "search_radius": 3000, "detour_ratio": 1.0, "closest_destination": False, "decay": True, "beta": 0.002},
         ]
-        if exp["closest_destination"]:
-            cmd.append("--closest-destination")
-        if exp["decay"]:
-            cmd.append("--decay")
+        
+        new_results = []
+        print(f"\n═══ madina_worldpop / {mode} ═══", flush=True)
+        
+        for exp in experiments:
+            cmd = [
+                sys.executable, "scripts/run_single_experiment.py",
+                "--city", city,
+                "--mode", mode,
+                "--name", exp["name"],
+                "--search-radius", str(exp["search_radius"]),
+                "--detour-ratio", str(exp["detour_ratio"]),
+                "--beta", str(exp["beta"])
+            ]
+            if exp["closest_destination"]:
+                cmd.append("--closest-destination")
+            if exp["decay"]:
+                cmd.append("--decay")
             
         print(f"Running variant: {exp['name']} (Radius={exp['search_radius']}, Detour={exp['detour_ratio']}, Closest={exp['closest_destination']}, Decay={exp['decay']}, Beta={exp['beta']})")
         

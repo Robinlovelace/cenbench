@@ -8,7 +8,7 @@ import pandas as pd
 import os
 
 CSV_COLUMNS = [
-    "tool", "variant", "r_squared", "pearson_r", "spearman_r",
+    "tool", "mode", "variant", "r_squared", "pearson_r", "spearman_r",
     "compute_time_s", "n_matched", "n_obs", "peak_memory_mb", "segments_per_sec"
 ]
 
