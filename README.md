@@ -64,9 +64,9 @@ analysis via a C++ library with Python, QGIS, and command-line
 interfaces, supporting hybrid and angular metrics with OpenMP
 multi-threading.
 
-**flownet** (**krantz2024flownet?**) implements path-sized-logit (PSL)
-stochastic traffic assignment for multimodal transport networks in R,
-enumerating alternative routes between origin-destination pairs and
+**flownet** (Krantz, Dünch, et al. 2024) implements path-sized-logit
+(PSL) stochastic traffic assignment for multimodal transport networks in
+R, enumerating alternative routes between origin-destination pairs and
 allocating flows while accounting for route overlap.
 
 <!-- TODO: populate this section -->
@@ -439,6 +439,14 @@ Cooper, Crispin H. V., and Alain J. F. Chiaradia. 2020. “sDNA: 3-d
 Spatial Network Analysis for GIS, CAD, Command Line & Python.”
 *SoftwareX* 12 (July): 100525.
 <https://doi.org/10.1016/j.softx.2020.100525>.
+
+</div>
+
+<div id="ref-krantz2024flownet" class="csl-entry">
+
+Krantz, Sebastian, Robert Dünch, et al. 2024. “Flownet: Flow-Aware and
+Multimodal Transport Network Analysis in R.” *Journal of Statistical
+Software*. <https://sebkrantz.github.io/flownet/>.
 
 </div>
 
