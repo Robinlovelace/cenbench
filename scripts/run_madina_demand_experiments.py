@@ -71,65 +71,65 @@ def main():
                 cmd.append("--closest-destination")
             if exp["decay"]:
                 cmd.append("--decay")
-            
-        print(f"Running variant: {exp['name']} (Radius={exp['search_radius']}, Detour={exp['detour_ratio']}, Closest={exp['closest_destination']}, Decay={exp['decay']}, Beta={exp['beta']})")
-        
-        t0 = time.time()
-        try:
-            env = os.environ.copy()
-            env["PYTHONPATH"] = "."
-            proc = subprocess.run(
-                cmd,
-                env=env,
-                capture_output=True,
-                text=True,
-                timeout=MAX_RUNTIME
-            )
-            elapsed = time.time() - t0
-            
-            if proc.returncode != 0:
-                print(f"  Process failed with return code {proc.returncode}")
-                print(proc.stderr)
-                res = None
+
+            print(f"Running variant: {exp['name']} (Radius={exp['search_radius']}, Detour={exp['detour_ratio']}, Closest={exp['closest_destination']}, Decay={exp['decay']}, Beta={exp['beta']})")
+
+            t0 = time.time()
+            try:
+                env = os.environ.copy()
+                env["PYTHONPATH"] = "."
+                proc = subprocess.run(
+                    cmd,
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    timeout=MAX_RUNTIME
+                )
+                elapsed = time.time() - t0
+
+                if proc.returncode != 0:
+                    print(f"  Process failed with return code {proc.returncode}")
+                    print(proc.stderr)
+                    res = None
+                else:
+                    res = None
+                    for line in proc.stdout.splitlines():
+                        if line.startswith("RESULT_JSON:"):
+                            res = json.loads(line[len("RESULT_JSON:"):])
+                            break
+            except subprocess.TimeoutExpired:
+                elapsed = time.time() - t0
+                print(f"  Variant {exp['name']} timed out after {elapsed:.1f}s (threshold: {MAX_RUNTIME}s).")
+                res = {
+                    "tool": "madina_worldpop",
+                    "variant": exp["name"],
+                    "r_squared": np.nan,
+                    "pearson_r": np.nan,
+                    "spearman_r": np.nan,
+                    "compute_time_s": round(elapsed, 2),
+                    "n_matched": num_sensors,
+                    "n_obs": num_sensors,
+                    "peak_memory_mb": np.nan,
+                    "segments_per_sec": np.nan
+                }
+
+            if res:
+                new_results.append(res)
+                print(f"  Result: R²={res['r_squared']:.4f}, Pearson r={res['pearson_r']:.4f}, Spearman r={res['spearman_r']:.4f}, Matched={res['n_matched']}, Time={res['compute_time_s']:.1f}s")
             else:
-                res = None
-                for line in proc.stdout.splitlines():
-                    if line.startswith("RESULT_JSON:"):
-                        res = json.loads(line[len("RESULT_JSON:"):])
-                        break
-        except subprocess.TimeoutExpired:
-            elapsed = time.time() - t0
-            print(f"  Variant {exp['name']} timed out after {elapsed:.1f}s (threshold: {MAX_RUNTIME}s).")
-            res = {
-                "tool": "madina_worldpop",
-                "variant": exp["name"],
-                "r_squared": np.nan,
-                "pearson_r": np.nan,
-                "spearman_r": np.nan,
-                "compute_time_s": round(elapsed, 2),
-                "n_matched": num_sensors,
-                "n_obs": num_sensors,
-                "peak_memory_mb": np.nan,
-                "segments_per_sec": np.nan
-            }
-            
-        if res:
-            new_results.append(res)
-            print(f"  Result: R²={res['r_squared']:.4f}, Pearson r={res['pearson_r']:.4f}, Spearman r={res['spearman_r']:.4f}, Matched={res['n_matched']}, Time={res['compute_time_s']:.1f}s")
-        else:
-            new_results.append({
-                "tool": "madina_worldpop",
-                "variant": exp["name"],
-                "r_squared": np.nan,
-                "pearson_r": np.nan,
-                "spearman_r": np.nan,
-                "compute_time_s": round(elapsed, 2),
-                "n_matched": num_sensors,
-                "n_obs": num_sensors,
-                "peak_memory_mb": np.nan,
-                "segments_per_sec": np.nan
-            })
-            
+                new_results.append({
+                    "tool": "madina_worldpop",
+                    "variant": exp["name"],
+                    "r_squared": np.nan,
+                    "pearson_r": np.nan,
+                    "spearman_r": np.nan,
+                    "compute_time_s": round(elapsed, 2),
+                    "n_matched": num_sensors,
+                    "n_obs": num_sensors,
+                    "peak_memory_mb": np.nan,
+                    "segments_per_sec": np.nan
+                })
+
     df_new = pd.DataFrame(new_results)
     merge_to_csv("madina_worldpop", df_new, results_file)
     print(f"\nSaved {len(df_new)} results to {results_file}")

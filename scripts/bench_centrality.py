@@ -37,13 +37,18 @@ def main():
     cfg = get_city_config(city)
     crs_project = cfg["crs_project"]
     modes = args.modes or get_modes(city)
-    
+
+    all_modes_results = []
     # loop over modes
     for mode in modes:
         mc = get_mode_config(city, mode)
         sensors_file = get_path(mc["sensors_file"])
         edges_file = get_path(mc["network_file"])
         sensors_value = mc.get("sensors_value", "avg_daily_pedestrians")
+
+        if not os.path.exists(sensors_file):
+            print(f"[skip] centrality {mode}: sensors {sensors_file} not found (validation pending)", flush=True)
+            continue
 
         # ── Sensors ──
         tel = gpd.read_file(sensors_file).to_crs(crs_project)
@@ -170,16 +175,20 @@ def main():
                 })
                 print(f"  btw_{k}: R²={m['r_squared']:.4f} r={m['pearson_r']:.4f} t={t:.1f}s", flush=True)
 
-        # SAVE (merge per tool)
-        results_path = f"{RESULTS_DIR}/{city}_centrality_results.csv"
-        df = pd.DataFrame(all_results)
-        df.to_csv(results_path, index=False)
-        print(f"\n── RESULTS ({city}/{mode}: {len(df)} variants) ──", flush=True)
-        for _, r in df.iterrows():
-            r2 = f"{r['r_squared']:.4f}" if not pd.isna(r['r_squared']) else "nan"
-            pr = f"{r['pearson_r']:.4f}" if not pd.isna(r['pearson_r']) else "nan"
-            print(f"  {r['tool']} {r['variant']}: R²={r2} r={pr} time={r['compute_time_s']:.1f}s matched={r['n_matched']}", flush=True)
-        print(f"Saved to {results_path}", flush=True)
+        all_modes_results.extend(all_results)
+
+    # SAVE (merge per tool, across all modes run in this invocation)
+    results_path = f"{RESULTS_DIR}/{city}_centrality_results.csv"
+    df = pd.DataFrame(all_modes_results)
+    for tool_name in ["cityseer", "madina"]:
+        if len(df) and (df["tool"] == tool_name).any():
+            merge_to_csv(tool_name, df[df["tool"] == tool_name], results_path)
+    print(f"\n── RESULTS ({city}: {len(df)} variants) ──", flush=True)
+    for _, r in df.iterrows():
+        r2 = f"{r['r_squared']:.4f}" if not pd.isna(r['r_squared']) else "nan"
+        pr = f"{r['pearson_r']:.4f}" if not pd.isna(r['pearson_r']) else "nan"
+        print(f"  {r['tool']} {r['mode']} {r['variant']}: R²={r2} r={pr} time={r['compute_time_s']:.1f}s matched={r['n_matched']}", flush=True)
+    print(f"Saved to {results_path}", flush=True)
 
 if __name__ == "__main__":
     main()

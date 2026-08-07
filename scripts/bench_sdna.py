@@ -20,12 +20,13 @@ from scipy.spatial import cKDTree
 warnings.filterwarnings("ignore")
 
 from scripts.config import get_path, get_city_config, get_modes, get_mode_config
+from scripts.csv_utils import merge_to_csv
 
 _process = psutil.Process()
 DATA_DIR = "data"; RESULTS_DIR = "results"
 os.makedirs(RESULTS_DIR, exist_ok=True)
 MATCH_DIST = 200
-RADII = [200, 400, 800]
+RADII = [100, 200, 400, 800]
 
 
 def metrics(y, p):
@@ -107,13 +108,13 @@ def main():
                 sdna_bin = venv_sdna
             else:
                 print("⚠  sDNA+ not available. Install: pipx install sdna_plus", flush=True)
-                pd.DataFrame([{
+                merge_to_csv("sdna", pd.DataFrame([{
                     "tool": "sdna", "mode": mode, "variant": "not_available",
                     "r_squared": None, "pearson_r": None, "spearman_r": None,
                     "compute_time_s": None, "n_matched": None,
                     "peak_memory_mb": None, "segments_per_sec": None,
                     "notes": "Install sDNA+: pipx install sdna_plus"
-                }]).to_csv(f"{RESULTS_DIR}/sdna_results.csv", index=False)
+                }]), f"{RESULTS_DIR}/{city}_sdna_results.csv")
                 sys.exit(0)
 
         print(f"sDNA+ binary: {sdna_bin}", flush=True)
@@ -202,7 +203,7 @@ def main():
                                 pd.DataFrame({
                                     "observed": tel_ped[e_match],
                                     "predicted": vals
-                                }).to_csv("results/sdna_best_predictions.csv", index=False)
+                                }).to_csv(f"{RESULTS_DIR}/{city}_sdna_best_predictions.csv", index=False)
 
                 print(f"  Time: {elapsed:.1f}s", flush=True)
 
@@ -210,13 +211,14 @@ def main():
             shutil.rmtree(workdir, ignore_errors=True)
 
     df = pd.DataFrame(all_results)
-    df.to_csv(f"{RESULTS_DIR}/sdna_results.csv", index=False)
+    out_path = f"{RESULTS_DIR}/{city}_sdna_results.csv"
+    merge_to_csv("sdna", df, out_path)
     print(f"\n── RESULTS ({len(df)} variants) ──", flush=True)
     for _, r in df.iterrows():
         r2 = f"{r['r_squared']:.4f}" if not pd.isna(r.get("r_squared")) else "nan"
         pr = f"{r['pearson_r']:.4f}" if not pd.isna(r.get("pearson_r")) else "nan"
         print(f"  {r['tool']} {r.get('mode','walk')} {r['variant']}: R²={r2} r={pr} time={r['compute_time_s']:.1f}s", flush=True)
-    print(f"Saved to {RESULTS_DIR}/sdna_results.csv", flush=True)
+    print(f"Saved to {out_path}", flush=True)
 
 
 if __name__ == "__main__":

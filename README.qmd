@@ -484,6 +484,63 @@ Full results with all `{python} len(df_all)` variants: [`results/leuven_results.
 
 ![Computational performance: throughput and memory usage](results/fig3_performance.png){#fig-performance}
 
+## Leeds case study (drive mode, DfT AADT validation)
+
+A second case study benchmarks all seven tools on **Leeds** (drive mode), validated against real traffic counts rather than Telraam sensors:
+
+- **Network**: OSM drive network clipped to a 10 km buffer around central Leeds (53.8008, -1.5491); 63,940 directed edges.
+- **Ground truth**: DfT annual average daily traffic (AADT) counts for West Yorkshire (open, OGL), 197 count points of which 187 matched to network edges within 200 m. Because AADT spans ~100 to ~150,000 vehicles/day, accuracy is measured as **log-log R²** (`compute_metrics_loglog`), which is not dominated by the few largest counts.
+- **Demand**: real 2011 Census journey-to-work `car_driver` flows (`pct::get_od()`, 9,701 OD pairs across 103 MSOA zones) for cityseer_od and aequilibrae; the WorldPop + OSM-POI gravity demand (as in Leuven) for madina_worldpop and flownet.
+- **Composite score**: `efficiency_score = max(r_squared, 0) / (log10(1 + compute_time_s) * log10(1 + peak_memory_mb))`, computed identically for every tool (`scripts/csv_utils.py`), rewarding accuracy per unit of log-scaled time and memory.
+
+Walking and cycling are not yet validated for Leeds (no per-mode pedestrian/cycle counts configured), so all Leeds rows are drive mode.
+
+The comparison table shows exactly one run per tool — the variant with the highest `efficiency_score` — except the overall best tool, whose top three runs are shown:
+
+```{python}
+#| echo: false
+#| label: tbl-leeds-results
+#| tbl-cap: "Leeds drive-mode benchmark: best run per tool by efficiency_score (top 3 runs for the overall best tool)."
+#| output: asis
+leeds = pd.read_csv("results/leeds_results.csv")
+leeds = leeds[leeds["r_squared"].notna()].copy()
+
+# Best variant per tool by efficiency_score.
+best_per_tool = (
+    leeds.sort_values("efficiency_score", ascending=False)
+    .groupby("tool", as_index=False)
+    .first()
+)
+overall_best_tool = best_per_tool.loc[best_per_tool["efficiency_score"].idxmax(), "tool"]
+
+# Overall best tool may show its top 3 runs.
+extra = (
+    leeds[leeds["tool"] == overall_best_tool]
+    .sort_values("efficiency_score", ascending=False)
+    .head(3)
+)
+show = pd.concat([best_per_tool, extra]).drop_duplicates(
+    subset=["tool", "mode", "variant"]
+)
+show = show.sort_values("efficiency_score", ascending=False)
+show = show[["tool", "variant", "r_squared", "compute_time_s",
+             "peak_memory_mb", "efficiency_score"]].copy()
+show["r_squared"] = show["r_squared"].round(3)
+show["compute_time_s"] = show["compute_time_s"].round(2)
+show["peak_memory_mb"] = show["peak_memory_mb"].round(0).astype("Int64")
+show["efficiency_score"] = show["efficiency_score"].round(4)
+show_table(show)
+```
+
+Full Leeds results (all variants): [`results/leeds_results.csv`](results/leeds_results.csv)
+
+Key Leeds findings:
+
+- **Capacity-restrained assignment beats all-or-nothing on real counts**: aequilibrae's user-equilibrium variants (bfw/fw/msa) all outperform its AoN baseline on the same census OD demand, and the link-penalisation route-choice variant (a stochastic-assignment proxy for SUE) lands between the two. Tighter BFW convergence (rgap 1e-4) and a higher-congestion BPR parameterisation (alpha=0.5) both scored *worse* than the default BFW run.
+- **cityseer OD betweenness with real census OD is the accuracy leader**: the dimensionless impedance (speed-class-weighted) variant with centroid injection at radius 5 km achieves the highest log-log R² of any tool while running in well under a second.
+- **Zone dispersion (k=3/5/10 injection points) *hurt* on the clipped Leeds network** — the opposite of the full-region criticalissues finding. Investigation: 25 of 103 MSOA zones cross the 10 km clip boundary, and randomly dispersed injection points in those zones snap to distant boundary nodes (mean snap 843 m vs 536 m for centroids in boundary-crossing zones; 76/103 zones have worse mean dispersed snap than centroid snap). On the full (unclipped) network dispersion spreads demand realistically within the zone; on the clipped network it mostly amplifies boundary-clipping artefacts.
+- **flownet PSL with synthetic gravity OD does not reproduce real AADT**: the WorldPop×POI gravity OD (top-150 origins/destinations by weight) assigns flows with R² ≈ 0.004 against DfT counts (plain linear R², as computed by `bench_flownet.py` — the census-OD tools report log-log R²), far below the census-OD tools — synthetic demand, not the assignment algorithm, is the bottleneck. Note all six flownet rows are identical because `run_flownet_assignment.R` currently ignores the `beta`/`detour.max` arguments (they trigger an internal flownet error on this network; see the script header), so each row is an independent ~510 s rerun of the same assignment.
+
 ## Next Steps
 
 1. Multi-city comparison (Leeds, Manchester, Edinburgh)

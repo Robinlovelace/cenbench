@@ -9,6 +9,7 @@ import json
 import numpy as np
 import pandas as pd
 import geopandas as gpd
+import networkx as nx
 import psutil
 
 from madina.zonal import Zonal
@@ -47,12 +48,29 @@ def main():
     origins = gpd.read_file(get_path(mc["origins_file"])).to_crs(crs_project)
     destinations = gpd.read_file(get_path(mc["destinations_file"])).to_crs(crs_project)
 
+    # Keep only the largest weakly-connected component (by u/v node id): edge
+    # clipping (e.g. Leeds' 10km-buffer clip, which keeps/drops edges purely
+    # by centroid-in-buffer) can leave a handful of disconnected boundary
+    # fragments, which otherwise surface as orphaned nodes in madina's own
+    # topology builder and crash create_graph() with a KeyError.
+    if "u" in edges.columns and "v" in edges.columns:
+        comp_graph = nx.Graph()
+        comp_graph.add_edges_from(zip(edges["u"].astype(int), edges["v"].astype(int)))
+        largest_component = max(nx.connected_components(comp_graph), key=len)
+        n0 = len(edges)
+        edges = edges[edges["u"].astype(int).isin(largest_component)
+                      & edges["v"].astype(int).isin(largest_component)].reset_index(drop=True)
+        if len(edges) < n0:
+            print(f"  Dropped {n0 - len(edges)} edges outside the largest connected component", flush=True)
+
     t0 = time.time()
-    
+
     # Initialize Zonal and build network
     z = Zonal()
     z.load_layer(name='streets', source=edges)
-    z.create_street_network(source_layer='streets', weight_attribute='length')
+    # node_snapping_tolerance handles sub-metre floating-point mismatches
+    # between line endpoints that should coincide (same root cause as above).
+    z.create_street_network(source_layer='streets', weight_attribute='length', node_snapping_tolerance=0.1)
     z.load_layer(name='origins', source=origins)
     z.load_layer(name='destinations', source=destinations)
     z.insert_node(layer_name='origins', label='origin', weight_attribute='population')
