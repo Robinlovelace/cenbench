@@ -104,16 +104,17 @@ def build_node_map(edges):
     return {int(r): i + 1 for i, r in enumerate(raw)}
 
 
-def build_graph(edges, node_map):
+def build_graph(edges, node_map, cap_scale=1.0):
     """Build an aequilibrae Graph directly from a plain edge DataFrame
     (bypassing the spatialite Project entirely -- see module docstring).
 
     a_node/b_node are the compact renumbered ids from build_node_map() --
     raw OSM ids are far too large for aequilibrae's node-indexed arrays.
+    cap_scale multiplies the per-class capacity (capacity calibration sweep).
     """
     cls = edges["highway"].map(first_class)
     speed_ms = cls.map(CLASS_SPEED_MPH).fillna(DEFAULT_MPH).astype(float) * MPH_TO_MS
-    capacity = cls.map(CLASS_CAPACITY_VPH).fillna(DEFAULT_CAPACITY).astype(float)
+    capacity = cls.map(CLASS_CAPACITY_VPH).fillna(DEFAULT_CAPACITY).astype(float) * cap_scale
 
     network = pd.DataFrame({
         "link_id": np.arange(1, len(edges) + 1, dtype=np.int64),
@@ -142,9 +143,12 @@ def node_coords_from_edges(edges, node_map):
     return coords
 
 
-def build_demand_matrix(od, weight_col, zones, node_xy_lookup, node_tree, node_ids):
+def build_demand_matrix(od, weight_col, zones, node_xy_lookup, node_tree, node_ids,
+                        demand_scale=1.0):
     """Snap zone centroids to nearest network node and aggregate car_driver
-    OD flow into a square AequilibraeMatrix keyed by network node id."""
+    OD flow into a square AequilibraeMatrix keyed by network node id.
+    demand_scale multiplies all flows (e.g. /10 for an ~hourly approximation
+    of the daily census OD, since capacities are per-hour)."""
     centroid_xy = np.array([(g.x, g.y) for g in zones.geometry.centroid])
     d, i = node_tree.query(centroid_xy)
     zone_to_node = {
@@ -157,7 +161,7 @@ def build_demand_matrix(od, weight_col, zones, node_xy_lookup, node_tree, node_i
         n1, n2 = zone_to_node.get(getattr(r, "geo_code1")), zone_to_node.get(getattr(r, "geo_code2"))
         if n1 is None or n2 is None or n1 == n2:
             continue
-        w = float(getattr(r, weight_col))
+        w = float(getattr(r, weight_col)) * demand_scale
         flows[(n1, n2)] = flows.get((n1, n2), 0.0) + w
 
     used_nodes = sorted({n for pair in flows for n in pair})
@@ -175,7 +179,8 @@ def build_demand_matrix(od, weight_col, zones, node_xy_lookup, node_tree, node_i
     return mat, np.array(used_nodes, dtype=np.int64), int((data > 0).sum()), float(data.sum())
 
 
-def run_assignment(graph, matrix, algorithm, vdf_params=None, max_iter=20, rgap=0.001):
+def run_assignment(graph, matrix, algorithm, vdf_params=None, max_iter=20, rgap=0.001,
+                   cores=1):
     # aequilibrae requires VDF/capacity/time_field to be set even for AoN
     # (LinearApproximation validates all of them regardless of algorithm) --
     # they are simply unused by the AoN iteration itself.
@@ -190,6 +195,11 @@ def run_assignment(graph, matrix, algorithm, vdf_params=None, max_iter=20, rgap=
     assig.max_iter = max_iter
     assig.rgap_target = rgap
     assig.set_algorithm(algorithm)
+    try:
+        if cores > 1:
+            assig.set_cores(cores)
+    except Exception:
+        pass
     assig.execute(log_specification=False)
     return assig.results()
 
@@ -267,20 +277,42 @@ def main():
         graph.set_graph("free_flow_time")
 
         variants = [
-            ("aon", "all-or-nothing", None, 20, 0.001),
-            ("ue_bfw", "bfw", {"alpha": 0.15, "beta": 4.0}, 20, 0.001),
-            ("ue_fw", "frank-wolfe", {"alpha": 0.15, "beta": 4.0}, 20, 0.001),
-            ("ue_msa", "msa", {"alpha": 0.15, "beta": 4.0}, 20, 0.001),
-            # Follow-ups on the best UE variant: tighter convergence, and a
-            # higher-congestion BPR parameterisation (alpha=0.5).
-            ("ue_bfw_tight", "bfw", {"alpha": 0.15, "beta": 4.0}, 60, 1e-4),
-            ("ue_bfw_a05", "bfw", {"alpha": 0.5, "beta": 4.0}, 20, 0.001),
+            # (name, algorithm, vdf_params, max_iter, rgap, cap_scale, demand_scale)
+            ("aon", "all-or-nothing", None, 20, 0.001, 1.0, 1.0),
+            ("ue_bfw", "bfw", {"alpha": 0.15, "beta": 4.0}, 20, 0.001, 1.0, 1.0),
+            ("ue_fw", "frank-wolfe", {"alpha": 0.15, "beta": 4.0}, 20, 0.001, 1.0, 1.0),
+            ("ue_msa", "msa", {"alpha": 0.15, "beta": 4.0}, 20, 0.001, 1.0, 1.0),
+            # Follow-ups on the best UE variant: tighter convergence, higher
+            # congestion BPR parameterisation (alpha=0.5).
+            ("ue_bfw_tight", "bfw", {"alpha": 0.15, "beta": 4.0}, 60, 1e-4, 1.0, 1.0),
+            ("ue_bfw_a05", "bfw", {"alpha": 0.5, "beta": 4.0}, 20, 0.001, 1.0, 1.0),
+            # ── NEW: deeper convergence (RGap was never reached at 20 iters) ──
+            ("ue_bfw_iter100", "bfw", {"alpha": 0.15, "beta": 4.0}, 100, 1e-5, 1.0, 1.0),
+            # ── NEW: capacity calibration (crude per-class defaults) ──
+            ("ue_bfw_cap05", "bfw", {"alpha": 0.15, "beta": 4.0}, 40, 1e-3, 0.5, 1.0),
+            ("ue_bfw_cap2", "bfw", {"alpha": 0.15, "beta": 4.0}, 40, 1e-3, 2.0, 1.0),
+            # ── NEW: BPR alpha/beta sweeps ──
+            ("ue_bfw_bpr_a0.15_b1", "bfw", {"alpha": 0.15, "beta": 1.0}, 40, 1e-3, 1.0, 1.0),
+            ("ue_bfw_bpr_a0.3_b2", "bfw", {"alpha": 0.3, "beta": 2.0}, 40, 1e-3, 1.0, 1.0),
+            ("ue_bfw_bpr_a0.1_b6", "bfw", {"alpha": 0.1, "beta": 6.0}, 40, 1e-3, 1.0, 1.0),
+            # ── NEW: demand scaled to ~hourly (daily OD vs per-hour capacity
+            #    gave astronomically high v/c ratios and non-convergence) ──
+            ("ue_bfw_d10", "bfw", {"alpha": 0.15, "beta": 4.0}, 40, 1e-3, 1.0, 0.1),
         ]
-        for variant_name, algo, vdf_params, max_iter, rgap in variants:
+        for variant_name, algo, vdf_params, max_iter, rgap, cap_scale, demand_scale in variants:
             t0 = time.time()
             mem0 = mem_mb()
             try:
-                res = run_assignment(graph, matrix, algo, vdf_params, max_iter, rgap)
+                # Fresh graph per variant: capacity scaling needs a rebuilt
+                # network, and aequilibrae's assignment mutates graph state.
+                g = build_graph(edges, node_map, cap_scale=cap_scale)
+                g.prepare_graph(centroids=centroids)
+                g.set_blocked_centroid_flows(False)
+                g.set_graph("free_flow_time")
+                mat, _, _, _ = build_demand_matrix(od, weight_col, zones, node_coords,
+                                                   node_tree, node_ids,
+                                                   demand_scale=demand_scale)
+                res = run_assignment(g, mat, algo, vdf_params, max_iter, rgap, cores=8)
             except Exception as e:
                 print(f"  {variant_name}: FAILED -> {e}", flush=True)
                 continue
@@ -309,38 +341,40 @@ def main():
         try:
             from aequilibrae.paths.route_choice import RouteChoice
 
-            t0 = time.time()
-            mem0 = mem_mb()
-            rc_graph = build_graph(edges, node_map)
-            rc_graph.prepare_graph(centroids=centroids)
-            rc_graph.set_blocked_centroid_flows(False)
-            rc_graph.set_graph("free_flow_time")
-            # A fresh matrix, not the one reused across the 4 TrafficAssignment
-            # runs above -- aequilibrae's assignment internals mutate
-            # matrix.matrix_view's shape as a side effect, which breaks
-            # RouteChoice.add_demand() if the same matrix object is reused.
-            rc_matrix, _, _, _ = build_demand_matrix(od, weight_col, zones, node_coords, node_tree, node_ids)
-            rc = RouteChoice(rc_graph)
-            rc.set_choice_set_generation("link-penalisation", max_routes=5, penalty=1.1)
-            rc.add_demand(rc_matrix)
-            rc.execute(perform_assignment=True)
-            link_loads = rc.get_load_results()
-            flow_col = "demand_tot" if "demand_tot" in link_loads.columns else link_loads.columns[-1]
-            flow_by_link = link_loads[flow_col].reindex(np.arange(1, len(edges) + 1)).fillna(0.0).values.astype(float)
-            elapsed = time.time() - t0
-            pred = flow_by_link[e_i[e_m]]
-            m = compute_metrics_loglog(sens_val[e_m], pred)
-            peak_mem = max(mem_mb(), mem0)
-            row = {
-                "tool": "aequilibrae", "mode": mode, "variant": "route_choice_lp",
-                "r_squared": m["r_squared"], "pearson_r": m["pearson_r"], "spearman_r": m["spearman_r"],
-                "compute_time_s": round(elapsed, 2), "n_matched": int(e_m.sum()), "n_obs": m["n"],
-                "peak_memory_mb": round(peak_mem, 1),
-                "segments_per_sec": round(len(edges) / elapsed, 1) if elapsed > 0 else 0.0,
-            }
-            results.append(row)
-            r2s = f"{m['r_squared']:.4f}" if not np.isnan(m["r_squared"]) else "nan"
-            print(f"  route_choice_lp: log-log R2={r2s} n={m['n']} t={elapsed:.1f}s", flush=True)
+            for rc_name, max_routes, penalty in [("route_choice_lp", 5, 1.1),
+                                                 ("route_choice_lp10", 10, 1.05)]:
+                t0 = time.time()
+                mem0 = mem_mb()
+                rc_graph = build_graph(edges, node_map)
+                rc_graph.prepare_graph(centroids=centroids)
+                rc_graph.set_blocked_centroid_flows(False)
+                rc_graph.set_graph("free_flow_time")
+                # A fresh matrix, not the one reused across the TrafficAssignment
+                # runs above -- aequilibrae's assignment internals mutate
+                # matrix.matrix_view's shape as a side effect, which breaks
+                # RouteChoice.add_demand() if the same matrix object is reused.
+                rc_matrix, _, _, _ = build_demand_matrix(od, weight_col, zones, node_coords, node_tree, node_ids)
+                rc = RouteChoice(rc_graph)
+                rc.set_choice_set_generation("link-penalisation", max_routes=max_routes, penalty=penalty)
+                rc.add_demand(rc_matrix)
+                rc.execute(perform_assignment=True)
+                link_loads = rc.get_load_results()
+                flow_col = "demand_tot" if "demand_tot" in link_loads.columns else link_loads.columns[-1]
+                flow_by_link = link_loads[flow_col].reindex(np.arange(1, len(edges) + 1)).fillna(0.0).values.astype(float)
+                elapsed = time.time() - t0
+                pred = flow_by_link[e_i[e_m]]
+                m = compute_metrics_loglog(sens_val[e_m], pred)
+                peak_mem = max(mem_mb(), mem0)
+                row = {
+                    "tool": "aequilibrae", "mode": mode, "variant": rc_name,
+                    "r_squared": m["r_squared"], "pearson_r": m["pearson_r"], "spearman_r": m["spearman_r"],
+                    "compute_time_s": round(elapsed, 2), "n_matched": int(e_m.sum()), "n_obs": m["n"],
+                    "peak_memory_mb": round(peak_mem, 1),
+                    "segments_per_sec": round(len(edges) / elapsed, 1) if elapsed > 0 else 0.0,
+                }
+                results.append(row)
+                r2s = f"{m['r_squared']:.4f}" if not np.isnan(m["r_squared"]) else "nan"
+                print(f"  {rc_name}: log-log R2={r2s} n={m['n']} t={elapsed:.1f}s", flush=True)
         except Exception as e:
             print(f"  route_choice_lp: FAILED/unsupported -> {e}", flush=True)
 

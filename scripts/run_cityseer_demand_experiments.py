@@ -119,6 +119,17 @@ def main():
             {"name": "cs_demand_r2000_beta001_all", "radius": 2000.0, "beta": 0.001, "closest": False},
             {"name": "cs_demand_r2000_beta004_all", "radius": 2000.0, "beta": 0.004, "closest": False},
 
+            # ── NEW: push the winning direction (larger radius, weaker decay)
+            # r2000_beta001 (0.676) beat r1200/r2000 at stronger betas, so sweep
+            # larger catchments and a gentler gravity decay toward the
+            # madina_worldpop 0.876 benchmark. ──
+            {"name": "cs_demand_r2400_beta001_all", "radius": 2400.0, "beta": 0.001, "closest": False},
+            {"name": "cs_demand_r2800_beta001_all", "radius": 2800.0, "beta": 0.001, "closest": False},
+            {"name": "cs_demand_r3200_beta001_all", "radius": 3200.0, "beta": 0.001, "closest": False},
+            {"name": "cs_demand_r3200_beta0005_all", "radius": 3200.0, "beta": 0.0005, "closest": False},
+            {"name": "cs_demand_r4000_beta0005_all", "radius": 4000.0, "beta": 0.0005, "closest": False},
+            {"name": "cs_demand_r2400_beta002_all", "radius": 2400.0, "beta": 0.002, "closest": False},
+
             # Closest Destination Choice Logic
             {"name": "cs_demand_r1200_beta002_closest", "radius": 1200.0, "beta": 0.002, "closest": True},
             {"name": "cs_demand_r2000_beta002_closest", "radius": 2000.0, "beta": 0.002, "closest": True},

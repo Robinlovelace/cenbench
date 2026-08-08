@@ -1,18 +1,29 @@
 #!/usr/bin/env python3
 """
-flownet path-sized-logit traffic assignment benchmark.
+flownet traffic-assignment benchmark (path-sized logit / all-or-nothing).
 
-For each configured mode (walk/cycle/drive) this runs flownet's stochastic
-traffic assignment (via scripts/run_flownet_assignment.R) using a gravity
-OD matrix built from WorldPop origins and OSM POI attractor destinations,
-then validates the assigned edge flows against Telraam sensor counts.
+For each configured mode this runs flownet's stochastic traffic assignment
+(via scripts/run_flownet_assignment.R) and validates the assigned edge flows
+against the ground-truth sensor counts.
 
-Roadmap of variants tested per mode:
-  - beta (PSL dispersion): 0.001, 0.002, 0.004
-  - detour.max (route enumeration tolerance): 1.25, 1.5
+Demand:
+  - If the city config provides od_file + zones_file (Leeds: real 2011 Census
+    journey-to-work OD, Leuven: precomputed gravity OD), those are used and
+    zone centroids are snapped to network nodes in R.
+  - Otherwise a WorldPop x OSM-attractor gravity OD is built in R (legacy).
 
-Usage:  PYTHONPATH=. python scripts/bench_flownet.py --city leuven
-Output: results/leuven_flownet_results.csv  (columns include `mode`)
+Assignment parameters (beta, detour.max, method, angle.max, nthreads, and a
+cost rescale cost_div) are ALL passed through to flownet::run_assignment (this
+was previously broken: the args were accepted but ignored, so every variant
+was identical).
+
+Metrics: log-log R2 (compute_metrics_loglog) for drive mode -- DfT AADT spans
+~100 to ~150,000 veh/day so linear R2 is not comparable to the other tools --
+and linear R2 for walk/cycle (matching the other Leuven tools). Variant names
+carry a `_ll` suffix where log-log metrics are used.
+
+Usage:  PYTHONPATH=. .venv/bin/python scripts/bench_flownet.py --city leeds
+Output: results/leeds_flownet_results.csv
 """
 import argparse
 import os
@@ -31,8 +42,9 @@ from scipy.spatial import cKDTree
 warnings.filterwarnings("ignore")
 
 from scripts.config import (get_path, get_city_config, get_modes,
-                            get_mode_config, TEST_MODE)
+                            get_mode_config)
 from scripts.csv_utils import merge_to_csv
+from scripts.utils.helpers import compute_metrics, compute_metrics_loglog
 
 RESULTS_DIR = "results"
 MATCH_DIST = 200
@@ -41,11 +53,30 @@ R_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 
 _process = psutil.Process()
 
-BETAS = [0.001, 0.002, 0.004]
-DETOURS = [1.25, 1.5]
 # Number of top-weighted OD zones used for the flownet assignment (keeps the
-# exhaustive path-size-logit tractable; covers the dense urban core).
+# exhaustive path-size-logit tractable; covers the dense urban core). Leeds has
+# 103 MSOA zones so this cap is not binding there.
 OD_SAMPLE = 150
+NTHREADS = 4
+
+# (name, method, beta, detour.max, cost_div, cost_type)
+# cost_div rescales the `.length` cost column: flownet's PSL utility is
+# V = -cost + beta*ln(PS), so at metre scale the logit is degenerate and beta
+# has no visible effect; /1000 (km) puts beta on a meaningful scale.
+# cost_type: "length" = plain edge length; "imp" = length x dimensionless
+# highway-class impedance factor (baseline_speed/class_speed), mirroring the
+# cityseer_od 'dimensionless_imp' variant that scores best on Leeds AADT.
+DEFAULT_VARIANTS = [
+    ("aon", "AoN", 0.0, 1.5, 1.0, "length"),
+    ("aon_imp", "AoN", 0.0, 1.5, 1.0, "imp"),
+    ("psl_beta0.001_detour1.25", "PSL", 0.001, 1.25, 1.0, "length"),
+    ("psl_beta0.001_detour1.5", "PSL", 0.001, 1.5, 1.0, "length"),
+    ("psl_beta0.004_detour1.5", "PSL", 0.004, 1.5, 1.0, "length"),
+    ("psl_imp_beta0.001_detour1.5", "PSL", 0.001, 1.5, 1.0, "imp"),
+    ("psl_imp_km_beta0.01_detour1.5", "PSL", 0.01, 1.5, 1000.0, "imp"),
+    ("psl_imp_km_beta0.05_detour2.0", "PSL", 0.05, 2.0, 1000.0, "imp"),
+    ("psl_km_beta0.01_detour1.5", "PSL", 0.01, 1.5, 1000.0, "length"),
+]
 
 
 def mem_mb():
@@ -57,12 +88,23 @@ def main():
     parser.add_argument("--city", default="leuven", help="City name (e.g. leuven)")
     parser.add_argument("--modes", nargs="*", default=None,
                         help="Subset of modes to run; default: all configured modes.")
+    parser.add_argument("--variants", nargs="*", default=None,
+                        help="Variant names (subset of DEFAULT_VARIANTS); default: all.")
     args = parser.parse_args()
 
     city = args.city
     cfg = get_city_config(city)
     crs_utm = cfg["crs_project"]
     modes = args.modes or get_modes(city)
+
+    variants = [v for v in DEFAULT_VARIANTS if v[0] in args.variants] \
+        if args.variants else DEFAULT_VARIANTS
+
+    # Real OD (census/gravity csv + zones geojson) when configured.
+    od_file = cfg.get("od_file")
+    zones_file = cfg.get("zones_file")
+    use_od = bool(od_file and zones_file and os.path.exists(od_file)
+                  and os.path.exists(zones_file))
 
     if not shutil.which("Rscript"):
         print("ERROR: Rscript not found on PATH. flownet requires R.", flush=True)
@@ -83,7 +125,7 @@ def main():
                   f"(validation data pending)", flush=True)
             continue
 
-        print(f"\n═══ flownet / {mode} ═══", flush=True)
+        print(f"\n═══ flownet / {city} / {mode} ═══", flush=True)
         edges = gpd.read_file(edges_path).to_crs(crs_utm)
         edges = edges.reset_index(drop=True)
         edges.index.name = "edge_idx"
@@ -103,68 +145,68 @@ def main():
 
         origins_p = get_path(mc["origins_file"])
         dests_p = get_path(mc["destinations_file"])
+        # drive mode: log-log metrics (AADT spans orders of magnitude)
+        use_loglog = mode == "drive"
 
-        for beta in BETAS:
-            for detour in DETOURS:
-                variant = f"psl_beta{beta}_detour{detour}"
-                flows_csv = os.path.join(RESULTS_DIR,
-                                         f"_flownet_{city}_{mode}_{variant}.csv")
-                cmd = [
-                    "Rscript", R_SCRIPT,
-                    edges_path, origins_p, dests_p,
-                    ".length", str(beta), str(detour), flows_csv, mode,
-                    str(OD_SAMPLE),
-                ]
-                t0 = time.perf_counter()
-                mem0 = mem_mb()
-                try:
-                    proc = subprocess.run(cmd, capture_output=True, text=True,
-                                          timeout=900)
-                except subprocess.TimeoutExpired:
-                    print(f"  {variant}: TIMEOUT", flush=True)
-                    continue
-                elapsed = time.perf_counter() - t0
+        for name, method, beta, detour, cost_div, cost_type in variants:
+            variant = name + ("_ll" if use_loglog else "")
+            flows_csv = os.path.join(RESULTS_DIR,
+                                     f"_flownet_{city}_{mode}_{variant}.csv")
+            cmd = [
+                "Rscript", R_SCRIPT,
+                edges_path, origins_p, dests_p,
+                ".length", str(beta), str(detour), flows_csv, mode,
+                str(OD_SAMPLE),
+                od_file if use_od else "", zones_file if use_od else "",
+                method, "90", str(NTHREADS), str(cost_div), cost_type,
+            ]
+            t0 = time.perf_counter()
+            mem0 = mem_mb()
+            try:
+                proc = subprocess.run(cmd, capture_output=True, text=True,
+                                      timeout=1800)
+            except subprocess.TimeoutExpired:
+                print(f"  {variant}: TIMEOUT", flush=True)
+                continue
+            elapsed = time.perf_counter() - t0
 
-                if proc.returncode != 0:
-                    print(f"  {variant}: R ERROR -> {proc.stderr[:300]}", flush=True)
-                    continue
-                print("  " + proc.stdout.strip().splitlines()[-1] if proc.stdout.strip() else f"  {variant} done", flush=True)
+            if proc.returncode != 0:
+                err = proc.stderr.strip().splitlines()[-1] if proc.stderr.strip() else "unknown R error"
+                print(f"  {variant}: R ERROR -> {err[:300]}", flush=True)
+                continue
+            print("  " + (proc.stdout.strip().splitlines()[-1] if proc.stdout.strip() else f"{variant} done"), flush=True)
 
-                if not os.path.exists(flows_csv):
-                    continue
-                fl = pd.read_csv(flows_csv)
-                # Map flows onto edge rows by 0-based edge_idx (R writes
-                # edge_idx aligned 1:1 with the network GPKG read order).
-                flow_map = dict(zip(fl["edge_idx"].astype(int), fl["flow"]))
-                pred = edges.index.map(lambda i: flow_map.get(int(i), np.nan)).values.astype(float)
-                pred_matched = pred[e_i[e_m]]
+            if not os.path.exists(flows_csv):
+                continue
+            fl = pd.read_csv(flows_csv)
+            flow_map = dict(zip(fl["edge_idx"].astype(int), fl["flow"]))
+            pred = edges.index.map(lambda i: flow_map.get(int(i), np.nan)).values.astype(float)
+            pred_matched = pred[e_i[e_m]]
 
-                # Robust metrics (mirror compute_metrics in helpers)
-                obs = tel_val[e_m]
-                mask = ~(np.isnan(obs) | np.isnan(pred_matched))
-                n = int(mask.sum())
-                if n < 3 or np.all(pred_matched[mask] == pred_matched[mask][0]):
-                    r2 = pr = sr = np.nan
-                else:
-                    from scipy import stats
-                    r2 = stats.linregress(pred_matched[mask], obs[mask]).rvalue ** 2
-                    pr, _ = stats.pearsonr(pred_matched[mask], obs[mask])
-                    sr, _ = stats.spearmanr(pred_matched[mask], obs[mask])
+            obs = tel_val[e_m]
+            mask = ~(np.isnan(obs) | np.isnan(pred_matched))
+            n = int(mask.sum())
+            if n < 3 or np.all(pred_matched[mask] == pred_matched[mask][0]):
+                r2 = pr = sr = np.nan
+            else:
+                m = compute_metrics_loglog(obs, pred_matched) if use_loglog \
+                    else compute_metrics(obs, pred_matched)
+                r2, pr, sr = m["r_squared"], m["pearson_r"], m["spearman_r"]
 
-                all_rows.append({
-                    "tool": "flownet", "mode": mode, "variant": variant,
-                    "r_squared": float(r2), "pearson_r": float(pr),
-                    "spearman_r": float(sr),
-                    "compute_time_s": round(elapsed, 2),
-                    "n_matched": e_match, "n_obs": n,
-                    "peak_memory_mb": round(mem_mb() - mem0 + 400, 1),
-                    "segments_per_sec": round(len(edges) / elapsed, 1) if elapsed > 0 else 0.0,
-                })
-                print(f"  {variant}: R²={r2:.4f} r={pr:.4f} t={elapsed:.1f}s", flush=True)
-                try:
-                    os.remove(flows_csv)
-                except OSError:
-                    pass
+            all_rows.append({
+                "tool": "flownet", "mode": mode, "variant": variant,
+                "r_squared": float(r2), "pearson_r": float(pr),
+                "spearman_r": float(sr),
+                "compute_time_s": round(elapsed, 2),
+                "n_matched": e_match, "n_obs": n,
+                "peak_memory_mb": round(mem_mb() - mem0 + 400, 1),
+                "segments_per_sec": round(len(edges) / elapsed, 1) if elapsed > 0 else 0.0,
+            })
+            print(f"  {variant}: R2={r2:.4f} r={pr:.4f} t={elapsed:.1f}s", flush=True)
+            try:
+                os.remove(flows_csv)
+            except OSError:
+                pass
 
     if all_rows:
         df = pd.DataFrame(all_rows)

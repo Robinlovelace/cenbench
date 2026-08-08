@@ -40,6 +40,7 @@ from cityseer.metrics import networks as cs_networks
 
 from scripts.config import get_path, get_city_config, get_mode_config
 from scripts.csv_utils import merge_to_csv
+from scripts.utils.edge_weights import apply_formula, formula_suffix
 from scripts.utils.helpers import compute_metrics_loglog
 
 RESULTS_DIR = "results"
@@ -90,13 +91,15 @@ def mem_mb():
     return _process.memory_info().rss / (1024 * 1024)
 
 
-def build_network_structure(edges_u, use_imp_factor):
+def build_network_structure(edges_u, use_imp_factor=False, imp_values=None):
     """Build a cityseer primal NetworkStructure from deduplicated directed
     edges. use_imp_factor=True bakes in a dimensionless highway-class speed
     multiplier; False leaves imp_factor at cityseer's default of 1.0
-    (plain length-based routing)."""
+    (plain length-based routing). imp_values (optional) overrides both: an
+    explicit per-edge imp_factor array (e.g. weight/length from the portable
+    edge-weight registry), so any formula's weight becomes the routing cost."""
     G = nx.MultiGraph()
-    for _, row in edges_u.iterrows():
+    for i, row in enumerate(edges_u.itertuples()):
         u, v = str(int(row.u)), str(int(row.v))
         c = list(row.geometry.coords)
         if u not in G:
@@ -104,7 +107,9 @@ def build_network_structure(edges_u, use_imp_factor):
         if v not in G:
             G.add_node(v, x=c[-1][0], y=c[-1][1])
         edge_kwargs = {"geom": row.geometry, "length": row.geometry.length}
-        if use_imp_factor:
+        if imp_values is not None:
+            edge_kwargs["imp_factor"] = float(imp_values[i])
+        elif use_imp_factor:
             cls = first_class(row.highway)
             mph = CLASS_MPH.get(cls, DEFAULT_MPH)
             class_speed_ms = mph * MPH_TO_MS
@@ -127,6 +132,15 @@ def main():
     parser.add_argument("--modes", nargs="*", default=None, help="Subset of modes; default: drive")
     parser.add_argument("--k-dispersion", type=int, nargs="*", default=[3, 5, 10],
                          help="Points per zone to sweep for the dispersed injection variant")
+    parser.add_argument("--weight", default=None,
+                         help="Edge-weight formula from scripts/utils/edge_weights.py "
+                              "(e.g. length, time_freeflow, time_imp_dimless). When set, "
+                              "imp_factor = weight/length so cityseer routes on that weight, "
+                              "and a full disp x tolerance x distance grid is run.")
+    parser.add_argument("--distances", type=float, nargs="*", default=[2000.0, 10000.0],
+                         help="Distances (radii, m) for the grid when --weight is set")
+    parser.add_argument("--tolerances", type=float, nargs="*", default=[0.0, 0.1],
+                         help="DAG dispersal tolerances to sweep")
     args = parser.parse_args()
 
     city = args.city
@@ -171,14 +185,28 @@ def main():
         od = od_df[(od_df["geo_code1"].isin(zones.index)) & (od_df["geo_code2"].isin(zones.index)) & (od_df[weight_col] > 0)]
         print(f"  OD pairs (both zones matched, {weight_col}>0): {len(od)}  total flow={od[weight_col].sum():.0f}", flush=True)
 
-        # Build both imp_factor variants of the network structure once.
+        # Build the network structure(s): with --weight, ONE structure whose
+        # imp_factor = weight/length (so cityseer's cost == the registry
+        # formula's weight); without, the plain vs dimensionless_imp pair.
         variants_net = {}
-        for imp_name, use_imp in [("plain", False), ("dimensionless_imp", True)]:
+        if args.weight:
+            wt_label = f"wt{formula_suffix(args.weight)}"
             t0 = time.time()
-            nodes_df, edges_df, net_struct = build_network_structure(edges, use_imp)
-            print(f"  Built '{imp_name}' NetworkStructure: {len(nodes_df)} nodes, {len(edges_df)} edges "
+            length = np.asarray(edges.geometry.length.values, dtype=float)
+            wt = apply_formula(edges, args.weight, speed_ms=float(mc["travel_speed"]))
+            imp = np.where(length > 0, wt / np.where(length > 0, length, 1.0), 1.0)
+            nodes_df, edges_df, net_struct = build_network_structure(edges, imp_values=imp)
+            print(f"  Built '{wt_label}' NetworkStructure ({args.weight}): "
+                  f"{len(nodes_df)} nodes, {len(edges_df)} edges "
                   f"({time.time()-t0:.1f}s)", flush=True)
-            variants_net[imp_name] = (nodes_df, edges_df, net_struct)
+            variants_net[wt_label] = (nodes_df, edges_df, net_struct)
+        else:
+            for imp_name, use_imp in [("plain", False), ("dimensionless_imp", True)]:
+                t0 = time.time()
+                nodes_df, edges_df, net_struct = build_network_structure(edges, use_imp)
+                print(f"  Built '{imp_name}' NetworkStructure: {len(nodes_df)} nodes, {len(edges_df)} edges "
+                      f"({time.time()-t0:.1f}s)", flush=True)
+                variants_net[imp_name] = (nodes_df, edges_df, net_struct)
 
         # Sensor <-> edge matching (shared across variants: same non-stub edge set/order per imp variant).
         matched = {}
@@ -197,7 +225,10 @@ def main():
         # network_structure.node_xys), not the original nx string node keys --
         # nodes_df.index order is verified 1:1 positional with node_xys, so the
         # cKDTree query result `i` (an array position) is itself the id to use.
-        nodes_df0 = variants_net["plain"][0]
+        # (With --weight there is a single "wt{formula}" structure; without it
+        # the first of plain/dimensionless_imp is used -- nodes are the same.)
+        first_net = next(iter(variants_net.values()))
+        nodes_df0 = first_net[0]
         node_xy = np.array([(nodes_df0.loc[k, "x"], nodes_df0.loc[k, "y"]) for k in nodes_df0.index])
         node_tree = cKDTree(node_xy)
 
@@ -295,9 +326,12 @@ def main():
         #    tolerance(0/3%/5%) at radius=20km (network is clipped to a 10km
         #    buffer, i.e. ~20km diameter, so this radius already reaches most
         #    of the network -- radius is refined around the best combo below). ──
+        # (With --weight there is a single "wt{formula}" structure; otherwise
+        # the plain/dimensionless_imp pair -- iterate the actual keys.)
         RADIUS0 = 20000
         disp_names = ["centroid"] + [f"k{k}" for k in K_VALUES]
-        for imp_name in ["plain", "dimensionless_imp"]:
+        imp_names = list(variants_net.keys())
+        for imp_name in imp_names:
             for disp in disp_names:
                 for tol in [0.0, 0.03, 0.05]:
                     name = f"od_{imp_name}_{disp}_tol{tol}_r{RADIUS0}"
@@ -307,7 +341,7 @@ def main():
         #    matter here since the whole network fits inside ~20-25km) ──
         df_so_far = pd.DataFrame(results)
         best = df_so_far.loc[df_so_far["r_squared"].idxmax()]
-        best_imp = "dimensionless_imp" if "dimensionless" in best["variant"] else "plain"
+        best_imp = next(im for im in imp_names if f"_{im}_" in best["variant"])
         best_disp = next(d for d in disp_names if f"_{d}_" in best["variant"])
         best_tol = next(t for t in [0.0, 0.03, 0.05] if f"tol{t}_" in best["variant"])
         print(f"  Best so far: {best['variant']} (log-log R2={best['r_squared']:.4f}); sweeping radius around it", flush=True)
